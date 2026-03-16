@@ -1,0 +1,17 @@
+{
+  "name": "finflow",
+  "private": true,
+  "scripts": {
+    "predev": "lsof -ti:5001 | xargs kill -9 2>/dev/null; true",
+    "dev": "concurrently -n server,client -c cyan,green \"cd server && npm run dev\" \"cd client && npm run dev\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "install:all": "cd server && npm install && cd ../client && npm install && npm install",
+    "db:push": "cd server && npm run db:push",
+    "db:generate": "cd server && npm run db:generate",
+    "vapid:generate": "cd server && npm run vapid:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
