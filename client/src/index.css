@@ -1,6 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { -webkit-tap-highlight-color: transparent; }
-body { overscroll-behavior-y: none; }
+body { overscroll-behavior-y: none; background: #F4F6FF; }
+
+@layer components {
+  .input-field {
+    @apply w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all;
+  }
+  .btn-primary {
+    @apply w-full py-4 rounded-2xl bg-brand text-white text-sm font-semibold tracking-wide hover:bg-brand-dark active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed;
+    box-shadow: 0 2px 16px 0 rgba(26,107,255,0.20);
+  }
+  .card {
+    @apply bg-white rounded-3xl p-5;
+    box-shadow: 0 2px 16px 0 rgba(26,107,255,0.08);
+  }
+}

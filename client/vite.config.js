@@ -18,5 +18,15 @@ export default defineConfig({
       }
     })
   ],
-  server: { proxy: { '/api': 'http://localhost:5000' } }
+  server: {
+    port: 5174,
+    proxy: {
+      '/api': 'http://localhost:5010',
+      '/socket.io': {
+        target: 'http://localhost:5010',
+        ws: true,
+        changeOrigin: true,
+      }
+    }
+  }
 });
