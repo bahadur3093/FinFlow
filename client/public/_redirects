@@ -1,0 +1,2 @@
+api/* https://finflow-al4j.onrender.com/api/:splat 200
+/socket.io/* https://finflow-al4j.onrender.com/socket.io/:splat 200
