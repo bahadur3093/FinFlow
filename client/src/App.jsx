@@ -8,6 +8,7 @@ import BudgetsPage from './pages/BudgetsPage.jsx';
 import TransactionsPage from './pages/TransactionsPage.jsx';
 import UploadPage from './pages/UploadPage.jsx';
 import InsightsPage from './pages/InsightsPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 
 const Protected = ({ children }) => {
   const token = useAuthStore(s => s.accessToken);
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="upload" element={<UploadPage />} />
         <Route path="insights" element={<InsightsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
     </Routes>
   );

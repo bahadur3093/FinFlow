@@ -22,9 +22,10 @@ const navItems = [
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
     </svg>
   )},
-  { to: '/insights', label: 'AI', icon: (active) => (
+  { to: '/profile', label: 'Profile', icon: (active) => (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? '#1A6BFF' : '#9CA3AF'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-3.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m0-11.1 2.1 2.1m6.8 6.8 2.1 2.1"/>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
     </svg>
   )},
 ];

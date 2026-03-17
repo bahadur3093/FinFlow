@@ -514,7 +514,7 @@ export default function BudgetsPage() {
       {showAdd && (
         <AddBudgetSheet
           onClose={() => setShowAdd(false)}
-          onSaved={(b) => setBudgets((prev) => [...prev, b])}
+          onSaved={() => {}}
         />
       )}
     </div>

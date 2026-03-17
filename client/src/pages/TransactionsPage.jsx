@@ -551,7 +551,7 @@ export default function TransactionsPage() {
         <AddTransactionSheet
           budgets={budgets}
           onClose={() => setShowAdd(false)}
-          onSaved={(tx) => setTransactions((prev) => [tx, ...prev])}
+          onSaved={() => {}}
         />
       )}
     </div>

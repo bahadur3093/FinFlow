@@ -45,3 +45,14 @@ export const refresh = async (req, res) => {
 };
 
 export const logout = (_, res) => res.json({ message: 'Logged out' });
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { name }
+    });
+    res.json({ user: { id: user.id, email: user.email, name: user.name } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+};

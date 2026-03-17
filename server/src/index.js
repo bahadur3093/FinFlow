@@ -31,6 +31,8 @@ app.use('/api/budgets', authenticateToken, budgetRoutes);
 app.use('/api/transactions', authenticateToken, transactionRoutes);
 app.use('/api/ai', authenticateToken, aiRoutes);
 app.use('/api/push', authenticateToken, pushRoutes);
+app.use('/api/auth/profile', authenticateToken);
+app.use('/api/auth', authRoutes);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
