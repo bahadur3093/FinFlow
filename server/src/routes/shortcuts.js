@@ -1,14 +1,18 @@
 import { Router } from 'express';
 import { prisma } from '../services/db.js';
 import { io } from '../index.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const router = Router();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const parseAndCategorize = async (message) => {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-  const prompt = `Extract transaction details from this bank SMS and return ONLY a valid JSON object, no markdown, no explanation:
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [
+      {
+        role: 'user',
+        content: `Extract transaction details from this bank SMS and return ONLY a valid JSON object, no markdown, no explanation:
 
 SMS: "${message}"
 
@@ -21,10 +25,13 @@ Return this exact structure:
   "type": "<Credit or Debit>",
   "date": "<DD/MM/YYYY>",
   "category": "<one of: Food & Dining, Transport, Shopping, Entertainment, Utilities, Health, Travel, Education, Groceries, Rent, Salary, Freelance, Investment, Transfer, Other>"
-}`;
+}`
+      }
+    ],
+    temperature: 0,
+  });
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
+  const text = response.choices[0].message.content.trim();
   return JSON.parse(text.replace(/```json|```/g, '').trim());
 };
 
@@ -36,7 +43,6 @@ router.post('/transaction', async (req, res) => {
     const parsed = await parseAndCategorize(message);
 
     const [day, month, year] = parsed.date.split('/');
-    // handle both YY and YYYY
     const fullYear = year.length === 2 ? `20${year}` : year;
     const parsedDate = new Date(`${fullYear}-${month}-${day}`);
 
