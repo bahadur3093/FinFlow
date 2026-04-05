@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import api from "../services/api.js";
 import { useAuthStore } from "../store/authStore.js";
-import { useSocket } from '../context/SocketContext.jsx';
+import { useSocket } from "../context/SocketContext.jsx";
 
 const CATEGORY_COLORS = {
   Food: "#FF6B6B",
@@ -28,7 +28,13 @@ const CATEGORY_BG = {
 };
 
 function Avatar({ name }) {
-  const initials = name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
+  const initials =
+    name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "U";
   const { connected } = useSocket();
 
   return (
@@ -36,7 +42,9 @@ function Avatar({ name }) {
       <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand font-bold text-sm">
         {initials}
       </div>
-      <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
+      <span
+        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${connected ? "bg-green-400" : "bg-red-400"}`}
+      />
     </div>
   );
 }
@@ -220,11 +228,16 @@ export default function DashboardPage() {
         {/* Spending donut */}
         {donutData.length > 0 && (
           <div className="card">
-            <div className="flex items-center justify-between mt-6 my-4">
+            <div className="flex items-center justify-between mt-6 mb-4">
               <h3 className="font-bold text-gray-900 text-sm">
                 Spending breakdown
               </h3>
-              <span className="text-xs text-gray-400">This period</span>
+              <button
+                onClick={() => navigate("/insights")}
+                className="text-xs text-brand font-semibold"
+              >
+                AI insights
+              </button>
             </div>
             <div className="flex items-center gap-4">
               <div className="w-32 h-32 flex-shrink-0">

@@ -12,6 +12,8 @@ import aiRoutes from './routes/ai.js';
 import pushRoutes from './routes/push.js';
 import { authenticateToken } from './middleware/auth.js';
 import { setupSocketHandlers } from './services/socketService.js';
+import loanRoutes from './routes/loans.js';
+import shortcutsRouter from './routes/shortcuts.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -33,6 +35,8 @@ app.use('/api/ai', authenticateToken, aiRoutes);
 app.use('/api/push', authenticateToken, pushRoutes);
 app.use('/api/auth/profile', authenticateToken);
 app.use('/api/auth', authRoutes);
+app.use('/api/loans', authenticateToken, loanRoutes);
+app.use('/api/shortcuts', shortcutsRouter);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

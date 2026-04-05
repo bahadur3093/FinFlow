@@ -19,6 +19,7 @@ model User {
   transactions  Transaction[]
   pushSubs      PushSubscription[]
   refreshTokens RefreshToken[]
+  loans         Loan[]
 }
 
 model Budget {
@@ -69,6 +70,23 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Loan {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // "home" | "car" | "personal" | "education" | "other"
+  principal   Float
+  outstanding Float
+  emi         Float
+  interestRate Float
+  tenureMonths Int
+  startDate   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
