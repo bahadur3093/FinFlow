@@ -34,6 +34,18 @@ services:
         sync: false
 
   - type: web
+    name: finflow-mcp
+    env: python
+    rootDir: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: python mcp_server.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: MCP_USER_ID
+        sync: false
+
+  - type: web
     name: finflow-client
     env: static
     rootDir: client
