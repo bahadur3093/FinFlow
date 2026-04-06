@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FinFlow MCP Server v2.0 — Python / FastMCP
+FinFlow MCP Server v2.0 — Python / FastMCP 2.x
 Connects Claude to the FinFlow PostgreSQL database.
 Deploy on Render as a web service (SSE transport).
 """
@@ -57,9 +57,6 @@ def query(sql: str, params: tuple = ()):
 def rows_to_text(rows: list) -> str:
     return json.dumps(rows, indent=2, default=str)
 
-def f(v): return float(v) if v is not None else None
-def i(v): return int(v)   if v is not None else None
-
 # ─────────────────────────────────────────────
 # FASTMCP APP
 # ─────────────────────────────────────────────
@@ -100,73 +97,70 @@ def get_transactions(
     category: Optional[str] = None,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
-    limit: Optional[str] = None
+    limit: int = 50
 ) -> str:
-    lim = int(limit) if limit else 50
     sql    = 'SELECT * FROM "Transaction" WHERE "userId" = %s'
     params = [CURRENT_USER_ID]
     if type:      sql += " AND type = %s";      params.append(type)
     if category:  sql += " AND category = %s";  params.append(category)
     if from_date: sql += " AND date >= %s";     params.append(from_date)
     if to_date:   sql += " AND date <= %s";     params.append(to_date)
-    sql += " ORDER BY date DESC LIMIT %s";      params.append(lim)
+    sql += " ORDER BY date DESC LIMIT %s";      params.append(limit)
     rows = query(sql, tuple(params))
     return rows_to_text(rows)
 
 
 @mcp.tool(description="Log a new income entry")
 def add_income(
-    amount: str,
+    amount: float,
     description: str,
     category: str,
     budget_id: Optional[str] = None
 ) -> str:
-    amt = float(amount)
     query(
         """
         INSERT INTO "Transaction"
             (id, description, amount, type, category, date, source, "userId", "budgetId")
         VALUES (gen_random_uuid(), %s, %s, 'income', %s, NOW(), 'ai_parsed', %s, %s)
         """,
-        (description, amt, category, CURRENT_USER_ID, budget_id)
+        (description, amount, category, CURRENT_USER_ID, budget_id)
     )
-    return f'✅ Income of ₹{amt} logged: "{description}" under {category}.'
+    return f'✅ Income of ₹{amount} logged: "{description}" under {category}.'
 
 
 @mcp.tool(description="Log a new expense entry")
 def add_expense(
-    amount: str,
+    amount: float,
     description: str,
     category: str,
     budget_id: Optional[str] = None
 ) -> str:
-    amt = float(amount)
     query(
         """
         INSERT INTO "Transaction"
             (id, description, amount, type, category, date, source, "userId", "budgetId")
         VALUES (gen_random_uuid(), %s, %s, 'expense', %s, NOW(), 'ai_parsed', %s, %s)
         """,
-        (description, amt, category, CURRENT_USER_ID, budget_id)
+        (description, amount, category, CURRENT_USER_ID, budget_id)
     )
     if budget_id:
         query(
             'UPDATE "Budget" SET spent = spent + %s, "updatedAt" = NOW() WHERE id = %s AND "userId" = %s',
-            (amt, budget_id, CURRENT_USER_ID)
+            (amount, budget_id, CURRENT_USER_ID)
         )
-    return f'✅ Expense of ₹{amt} logged: "{description}" under {category}.'
+    return f'✅ Expense of ₹{amount} logged: "{description}" under {category}.'
 
 
 @mcp.tool(description="Update an existing transaction")
 def update_transaction(
     id: str,
-    amount: Optional[str] = None,
+    amount: Optional[float] = None,
     description: Optional[str] = None,
     category: Optional[str] = None,
     type: Optional[str] = None
 ) -> str:
     updates, params = [], []
-    if amount is not None: updates.append("amount = %s");      params.append(float(amount))
+    if amount is not None: updates.append("amount = %s");      params.append(amount)
     if description:        updates.append("description = %s"); params.append(description)
     if category:           updates.append("category = %s");    params.append(category)
     if type:               updates.append("type = %s");        params.append(type)
@@ -188,21 +182,20 @@ def delete_transaction(id: str) -> str:
 
 @mcp.tool(description="Get spending grouped by category for a given month/year")
 def get_spending_summary(
-    month: Optional[str] = None,
-    year: Optional[str] = None
+    month: Optional[int] = None,
+    year: Optional[int] = None
 ) -> str:
     sql    = 'SELECT category, SUM(amount) AS total FROM "Transaction" WHERE "userId" = %s AND type = \'expense\''
     params = [CURRENT_USER_ID]
-    if month: sql += " AND EXTRACT(MONTH FROM date) = %s"; params.append(int(month))
-    if year:  sql += " AND EXTRACT(YEAR FROM date) = %s";  params.append(int(year))
+    if month: sql += " AND EXTRACT(MONTH FROM date) = %s"; params.append(month)
+    if year:  sql += " AND EXTRACT(YEAR FROM date) = %s";  params.append(year)
     sql += " GROUP BY category ORDER BY total DESC"
     rows = query(sql, tuple(params))
     return rows_to_text(rows)
 
 
 @mcp.tool(description="Get income vs expense totals month by month")
-def get_monthly_trend(months: Optional[str] = None) -> str:
-    m = int(months) if months else 6
+def get_monthly_trend(months: int = 6) -> str:
     rows = query(
         """
         SELECT
@@ -215,7 +208,7 @@ def get_monthly_trend(months: Optional[str] = None) -> str:
         GROUP BY TO_CHAR(date, 'YYYY-MM')
         ORDER BY month ASC
         """,
-        (CURRENT_USER_ID, str(m))
+        (CURRENT_USER_ID, str(months))
     )
     return rows_to_text(rows)
 
@@ -225,13 +218,13 @@ def get_monthly_trend(months: Optional[str] = None) -> str:
 
 @mcp.tool(description="Get all budgets, optionally filtered by month/year")
 def get_budgets(
-    month: Optional[str] = None,
-    year: Optional[str] = None
+    month: Optional[int] = None,
+    year: Optional[int] = None
 ) -> str:
     sql    = 'SELECT * FROM "Budget" WHERE "userId" = %s'
     params = [CURRENT_USER_ID]
-    if month: sql += " AND month = %s"; params.append(int(month))
-    if year:  sql += " AND year = %s";  params.append(int(year))
+    if month: sql += " AND month = %s"; params.append(month)
+    if year:  sql += " AND year = %s";  params.append(year)
     sql += " ORDER BY year DESC, month DESC"
     rows = query(sql, tuple(params))
     return rows_to_text(rows)
@@ -240,10 +233,10 @@ def get_budgets(
 @mcp.tool(description="Create a new budget for a category and month")
 def create_budget(
     name: str,
-    amount: str,
+    amount: float,
     category: str,
-    month: str,
-    year: str
+    month: int,
+    year: int
 ) -> str:
     rows = query(
         """
@@ -252,7 +245,7 @@ def create_budget(
         VALUES (gen_random_uuid(), %s, %s, 0, %s, %s, %s, NOW(), NOW(), %s)
         RETURNING id
         """,
-        (name, float(amount), category, int(month), int(year), CURRENT_USER_ID)
+        (name, amount, category, month, year, CURRENT_USER_ID)
     )
     return f"✅ Budget created with ID: {rows[0]['id']}"
 
@@ -261,13 +254,13 @@ def create_budget(
 def update_budget(
     id: str,
     name: Optional[str] = None,
-    amount: Optional[str] = None,
+    amount: Optional[float] = None,
     category: Optional[str] = None
 ) -> str:
     updates, params = [], []
-    if name:   updates.append("name = %s");   params.append(name)
-    if amount: updates.append("amount = %s"); params.append(float(amount))
-    if category: updates.append("category = %s"); params.append(category)
+    if name:              updates.append("name = %s");   params.append(name)
+    if amount is not None: updates.append("amount = %s"); params.append(amount)
+    if category:          updates.append("category = %s"); params.append(category)
     updates.append('"updatedAt" = NOW()')
     params.extend([id, CURRENT_USER_ID])
     query(
@@ -299,11 +292,11 @@ def get_loans() -> str:
 def add_loan(
     name: str,
     type: str,
-    principal: str,
-    outstanding: str,
-    emi: str,
-    interest_rate: str,
-    tenure_months: str,
+    principal: float,
+    outstanding: float,
+    emi: float,
+    interest_rate: float,
+    tenure_months: int,
     start_date: str
 ) -> str:
     rows = query(
@@ -315,8 +308,8 @@ def add_loan(
         VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
         RETURNING id
         """,
-        (name, type, float(principal), float(outstanding), float(emi),
-         float(interest_rate), int(tenure_months), start_date, CURRENT_USER_ID)
+        (name, type, principal, outstanding, emi,
+         interest_rate, tenure_months, start_date, CURRENT_USER_ID)
     )
     return f"✅ Loan added with ID: {rows[0]['id']}"
 
@@ -324,14 +317,14 @@ def add_loan(
 @mcp.tool(description="Update an existing loan (e.g. after EMI payment, update outstanding)")
 def update_loan(
     id: str,
-    outstanding: Optional[str] = None,
-    emi: Optional[str] = None,
-    interest_rate: Optional[str] = None
+    outstanding: Optional[float] = None,
+    emi: Optional[float] = None,
+    interest_rate: Optional[float] = None
 ) -> str:
     updates, params = [], []
-    if outstanding:   updates.append("outstanding = %s");    params.append(float(outstanding))
-    if emi:           updates.append("emi = %s");            params.append(float(emi))
-    if interest_rate: updates.append('"interestRate" = %s'); params.append(float(interest_rate))
+    if outstanding is not None:   updates.append("outstanding = %s");    params.append(outstanding)
+    if emi is not None:           updates.append("emi = %s");            params.append(emi)
+    if interest_rate is not None: updates.append('"interestRate" = %s'); params.append(interest_rate)
     updates.append('"updatedAt" = NOW()')
     params.extend([id, CURRENT_USER_ID])
     query(
