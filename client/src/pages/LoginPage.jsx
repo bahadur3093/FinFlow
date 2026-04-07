@@ -43,7 +43,7 @@ export default function LoginPage() {
         <p className="text-white/70 text-xs mt-1">Smart money management</p>
       </div>
 
-      <div className="flex-1 px-5 -mt-6 pb-10">
+      <div className="flex-1 px-5 pt-6 pb-10">
         <div className="card shadow-card-lg">
           <h2 className="text-xl font-bold text-gray-900 mt-2 mb-1">Welcome back</h2>
           <p className="text-sm text-gray-400 mb-6">Sign in to your account</p>

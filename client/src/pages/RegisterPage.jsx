@@ -65,7 +65,7 @@ export default function RegisterPage() {
         <h1 className="text-white text-xl font-bold tracking-tight">FinFlow</h1>
       </div>
 
-      <div className="flex-1 px-5 -mt-6 pb-10">
+      <div className="flex-1 px-5 pt-6 pb-10">
         <div className="card shadow-card-lg">
           <h2 className="text-xl font-bold text-gray-900 mt-2 mb-1">Create account</h2>
           <p className="text-sm text-gray-400 mb-6">Start your financial journey</p>

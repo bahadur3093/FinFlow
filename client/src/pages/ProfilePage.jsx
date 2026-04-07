@@ -189,12 +189,12 @@ export default function ProfilePage() {
   return (
     <div className="pb-6">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-20 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-8 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white opacity-5" />
         <h1 className="text-white text-xl font-bold">Profile</h1>
       </div>
 
-      <div className="px-5 -mt-10 space-y-4">
+      <div className="px-5 mt-6 space-y-4">
         {/* Profile card */}
         <div className="card shadow-card-lg">
           <div className="flex items-center gap-4 mt-8">

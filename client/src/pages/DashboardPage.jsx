@@ -153,7 +153,7 @@ export default function DashboardPage() {
   return (
     <div className="pb-6">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-16 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-8 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white opacity-5" />
         <div className="absolute top-16 -left-6 w-28 h-28 rounded-full bg-white opacity-5" />
 
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="px-5 -mt-6 space-y-4">
+      <div className="px-5 mt-6 space-y-4">
         {/* Spending donut */}
         {donutData.length > 0 && (
           <div className="card">

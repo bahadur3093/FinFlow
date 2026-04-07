@@ -120,14 +120,14 @@ export default function UploadPage() {
   return (
     <div className="pb-6">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-16 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-8 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white opacity-5" />
         <h1 className="text-white text-xl font-bold mb-1">AI Statement Parser</h1>
         <p className="text-white/70 text-xs">Upload your bank statement and let AI extract all transactions</p>
       </div>
 
-      <div className="px-5 -mt-6 space-y-4">
-        <div className="card mt-6 z-1 relative">
+      <div className="px-5 mt-6 space-y-4">
+        <div className="card z-1 relative">
           <StepIndicator current={step} />
 
           {/* Step: Upload */}
