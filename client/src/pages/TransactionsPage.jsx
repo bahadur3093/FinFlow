@@ -359,7 +359,7 @@ export default function TransactionsPage() {
   return (
     <div className="pb-6">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-16 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-8 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white opacity-5" />
         <div className="flex items-center justify-between mb-5 z-1 relative">
           <h1 className="text-white text-xl font-bold">Transactions</h1>
@@ -394,10 +394,10 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <div className="px-5 -mt-6 space-y-4">
+      <div className="px-5 mt-6 space-y-4">
         {/* Expense by Category chart */}
         {expenseByCategory.length > 0 && (
-          <div className="card pt-4 pb-3 mt-6">
+          <div className="card pt-4 pb-3">
             <p className="text-sm font-bold text-gray-800 mb-3 px-1">Expenses by Category</p>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
