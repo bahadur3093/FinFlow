@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api.js";
 import { useSocket } from '../context/SocketContext.jsx';
 
@@ -23,6 +24,16 @@ const CATEGORY_COLORS = {
   Utilities: { bg: "bg-yellow-50", text: "text-yellow-600" },
   Salary: { bg: "bg-brand-50", text: "text-brand" },
   Other: { bg: "bg-gray-50", text: "text-gray-500" },
+};
+
+const CATEGORY_HEX = {
+  Food: "#EF4444",
+  Transport: "#3B82F6",
+  Shopping: "#A855F7",
+  Entertainment: "#F97316",
+  Health: "#22C55E",
+  Utilities: "#CA8A04",
+  Other: "#6B7280",
 };
 
 const fmt = (n) =>
@@ -334,6 +345,17 @@ export default function TransactionsPage() {
     .filter((t) => t.type === "expense")
     .reduce((s, t) => s + t.amount, 0);
 
+  const expenseByCategory = Object.entries(
+    filtered
+      .filter((t) => t.type === "expense")
+      .reduce((acc, t) => {
+        acc[t.category] = (acc[t.category] || 0) + t.amount;
+        return acc;
+      }, {})
+  )
+    .map(([name, value]) => ({ name, value, color: CATEGORY_HEX[name] || "#6B7280" }))
+    .sort((a, b) => b.value - a.value);
+
   return (
     <div className="pb-6">
       {/* Header */}
@@ -373,6 +395,43 @@ export default function TransactionsPage() {
       </div>
 
       <div className="px-5 -mt-6 space-y-4">
+        {/* Expense by Category chart */}
+        {expenseByCategory.length > 0 && (
+          <div className="card pt-4 pb-3 mt-6">
+            <p className="text-sm font-bold text-gray-800 mb-3 px-1">Expenses by Category</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={expenseByCategory}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {expenseByCategory.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [fmt(value), "Amount"]}
+                  contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", fontSize: 12 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 px-1">
+              {expenseByCategory.map((entry) => (
+                <div key={entry.name} className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                  <span className="text-xs text-gray-500 truncate">{entry.name}</span>
+                  <span className="text-xs font-semibold text-gray-700 ml-auto">{fmt(entry.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="card py-3 px-4 flex items-center gap-3 mt-6">
           <svg
