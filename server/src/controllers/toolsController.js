@@ -36,6 +36,7 @@ export async function unlockPdf(req, res) {
         outputPath,
       ]);
     } catch (qpdfErr) {
+      console.error('[pdf-unlock] qpdf failed:', qpdfErr.code, qpdfErr.stderr || qpdfErr.message);
       const stderr = (qpdfErr.stderr || qpdfErr.message || '').toLowerCase();
       const isWrongPassword = PASSWORD_STDERR_PATTERNS.some((p) => stderr.includes(p));
       return res.status(400).json({
