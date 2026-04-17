@@ -10,6 +10,8 @@ import UploadPage from './pages/UploadPage.jsx';
 import InsightsPage from './pages/InsightsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import LoansPage from './pages/LoansPage.jsx';
+import ToolsPage from './pages/ToolsPage.jsx';
+import PDFUnlockerPage from './pages/PDFUnlockerPage.jsx';
 
 const Protected = ({ children }) => {
   const token = useAuthStore(s => s.accessToken);
@@ -29,6 +31,8 @@ export default function App() {
         <Route path="insights" element={<InsightsPage />} />
         <Route path="loans" element={<LoansPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="tools" element={<ToolsPage />} />
+        <Route path="tools/pdf-unlocker" element={<PDFUnlockerPage />} />
       </Route>
     </Routes>
   );
