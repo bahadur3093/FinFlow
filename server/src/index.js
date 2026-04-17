@@ -23,6 +23,9 @@ export const io = new Server(httpServer, {
   cors: { origin: process.env.CLIENT_URL, credentials: true }
 });
 
+// Trust Render's reverse proxy so express-rate-limit reads the real client IP
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
