@@ -181,7 +181,7 @@ export default function PDFUnlockerPage() {
                         <line x1="9" y1="16" x2="13" y2="16" />
                       </svg>
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">{file.name}</p>
+                    <p className="text-sm font-semibold text-gray-700 break-all line-clamp-3">{file.name}</p>
                     <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
                     <button
                       type="button"
@@ -304,7 +304,7 @@ export default function PDFUnlockerPage() {
               <div className="space-y-2">
                 <ProgressBar percent={uploadPercent} />
                 <div className="flex justify-between">
-                  <span className="text-xs text-gray-400">{file?.name}</span>
+                  <span className="text-xs text-gray-400 break-all line-clamp-2">{file?.name}</span>
                   <span className="text-xs text-brand font-semibold">{uploadPercent}%</span>
                 </div>
               </div>
@@ -381,7 +381,7 @@ export default function PDFUnlockerPage() {
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
                 <div className="flex-1 text-left">
-                  <p className="text-xs font-semibold text-green-700 truncate">{downloadName}</p>
+                  <p className="text-xs font-semibold text-green-700 break-all line-clamp-2">{downloadName}</p>
                   <p className="text-xs text-green-500">Ready to download</p>
                 </div>
               </div>
