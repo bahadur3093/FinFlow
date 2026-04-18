@@ -3,7 +3,7 @@ services:
     name: finflow-server
     env: node
     rootDir: server
-    buildCommand: apt-get install -y qpdf && npm install && npm run db:generate
+    buildCommand: apt-get update && apt-get install -y qpdf && npm install && npm run db:generate
     startCommand: npm start
     envVars:
       - key: NODE_ENV
