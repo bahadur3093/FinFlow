@@ -19,15 +19,20 @@ import toolsRoutes from './routes/tools.js';
 const app = express();
 const httpServer = createServer(app);
 
+const ALLOWED_ORIGINS = [
+  'https://finflow-client-hbgk.onrender.com',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 export const io = new Server(httpServer, {
-  cors: { origin: process.env.CLIENT_URL, credentials: true }
+  cors: { origin: ALLOWED_ORIGINS, credentials: true }
 });
 
 // Trust Render's reverse proxy so express-rate-limit reads the real client IP
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
