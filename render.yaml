@@ -7,6 +7,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: CLIENT_URL
+        value: https://finflow-client-hbgk.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -52,7 +54,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: finflow-server
-          type: web
-          property: host
+        value: https://finflow-server-hpkb.onrender.com
