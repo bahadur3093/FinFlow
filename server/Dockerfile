@@ -2,7 +2,7 @@ FROM node:22-slim
 
 # Install qpdf for PDF decryption
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends qpdf && \
+    apt-get install -y --no-install-recommends qpdf openssl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
