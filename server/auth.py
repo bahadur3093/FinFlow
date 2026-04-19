@@ -16,19 +16,27 @@ Design notes
 
 • Tokens minted by the Node.js /api/auth/mcp-token endpoint carry
       { "id": ..., "scope": "mcp", "type": "persistent" }
-  and are stored in the McpToken DB table so they can be hard-revoked
-  when the user regenerates their URL.  The middleware checks the DB for
-  these tokens.  Older password-based /auth/token tokens bypass the check.
+  and are stored in the McpToken DB table so they can be hard-revoked.
 
-• SSE connections pass the token as a query-string parameter:
-      /sse?token=<jwt>
-  The middleware reads that before falling back to the Authorization header.
+SSE two-request flow
+────────────────────
+  Claude.ai (and other SSE MCP clients) make two kinds of requests:
+
+  1.  GET  /sse?token=<jwt>         — long-lived SSE connection
+      The token is in the query string.  The middleware validates it and,
+      while streaming the response, captures the sessionId that FastMCP
+      embeds in the first "endpoint" SSE event.  The mapping
+      sessionId → user_id is stored in _sessions.
+
+  2.  POST /messages?sessionId=<id> — individual tool calls
+      No token is present.  The middleware looks up the sessionId in
+      _sessions and re-uses the already-validated user_id.
 
 Public surface
 ──────────────
-  user_id_var   — ContextVar[str]: read this inside every tool handler
+  user_id_var    — ContextVar[str]: read this inside every tool handler
   AuthMiddleware — pure-ASGI class; wrap the FastMCP ASGI app with it
-  verify_token  — decode + validate a JWT, raise jwt.PyJWTError on failure
+  verify_token   — decode + validate a JWT, raise jwt.PyJWTError on failure
   create_mcp_token — mint a 30-day MCP-scoped JWT for a given user_id
 """
 
@@ -36,7 +44,9 @@ import contextvars
 import datetime
 import json
 import os
+import re
 import threading
+import time
 import urllib.parse
 
 import jwt
@@ -58,11 +68,32 @@ user_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("user_id")
 JWT_SECRET    = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 
-# Paths that bypass auth (exact match, no trailing slash needed)
+# Paths that bypass auth entirely (exact match)
 PUBLIC_PATHS = frozenset({"/auth/token", "/health"})
 
 # ─────────────────────────────────────────────
-# DB CONNECTION POOL (for revocation checks)
+# SESSION STORE  (SSE sessionId → user_id)
+# ─────────────────────────────────────────────
+
+# FastMCP assigns a unique sessionId per SSE connection and embeds it in the
+# first "endpoint" SSE event.  Claude.ai then POSTs to
+#   /messages?sessionId=<id>
+# without repeating the token.  We capture the mapping here so those POSTs
+# can be authenticated without requiring the token a second time.
+
+_sessions: dict[str, tuple[str, float]] = {}   # sessionId -> (user_id, created_at)
+_SESSION_TTL = 86_400.0                         # 24 hours
+
+
+def _cleanup_sessions() -> None:
+    """Remove sessions older than SESSION_TTL.  Called lazily on new connections."""
+    cutoff = time.monotonic() - _SESSION_TTL
+    expired = [sid for sid, (_, ts) in _sessions.items() if ts < cutoff]
+    for sid in expired:
+        del _sessions[sid]
+
+# ─────────────────────────────────────────────
+# DB CONNECTION POOL  (revocation checks)
 # ─────────────────────────────────────────────
 
 _pool: "psycopg2.pool.ThreadedConnectionPool | None" = None
@@ -82,12 +113,9 @@ def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
 
 def _is_token_active(token: str, user_id: str) -> bool:
     """
-    Return True if *token* is still the current active MCP token for *user_id*.
-
-    Only called for tokens with type=="persistent" (minted by the Node.js
-    /api/auth/mcp-token endpoint and stored in the McpToken table).
-    Fails open (returns True) on any DB error so availability is not impacted
-    by transient DB issues.
+    Return True if *token* is still the current active McpToken for *user_id*.
+    Only called for tokens carrying type=="persistent".
+    Fails open on any DB error so availability is not impacted by transient issues.
     """
     try:
         p = _get_pool()
@@ -102,18 +130,14 @@ def _is_token_active(token: str, user_id: str) -> bool:
         finally:
             p.putconn(conn)
     except Exception:
-        return True  # fail open — a DB hiccup should not block all requests
+        return True  # fail open
 
 # ─────────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────────
 
 def verify_token(token: str) -> dict:
-    """
-    Decode and verify *token* using JWT_SECRET.
-    Returns the decoded payload dict.
-    Raises jwt.PyJWTError (or subclass) on any failure.
-    """
+    """Decode and verify *token*.  Raises jwt.PyJWTError on any failure."""
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
 
@@ -122,11 +146,7 @@ def create_mcp_token(user_id: str) -> str:
     Mint a long-lived (30-day) JWT for MCP clients that authenticate via
     the /auth/token password endpoint.
 
-    Payload is intentionally identical to the Node.js access-token shape
-    ({ "id": user_id }) so the same verify_token() works for both.
-    A "scope": "mcp" claim distinguishes these from short-lived web tokens.
-    These tokens do NOT carry type:"persistent" and are NOT stored in the DB,
-    so they are not subject to the revocation DB check.
+    Does NOT carry type:"persistent" — not stored in DB, no revocation check.
     """
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     payload = {
@@ -140,13 +160,12 @@ def create_mcp_token(user_id: str) -> str:
 
 def _extract_token(scope: dict) -> str | None:
     """
-    Extract the raw JWT string from the request.
+    Extract the raw JWT from the request.
 
-    Checks in order:
-    1. ?token=<jwt> query-string parameter  (used by SSE MCP URL connections)
-    2. Authorization: Bearer <jwt> header   (used by MCP clients / direct API)
+    Order of precedence:
+    1. ?token=<jwt>   query-string param  (SSE URL connections)
+    2. Authorization: Bearer <jwt> header (direct API / MCP clients)
     """
-    # ── Query string ──────────────────────────────────────────────────────
     qs = scope.get("query_string", b"").decode("latin-1")
     if qs:
         params = urllib.parse.parse_qs(qs)
@@ -154,7 +173,6 @@ def _extract_token(scope: dict) -> str | None:
         if token_list:
             return token_list[0].strip()
 
-    # ── Authorization header ──────────────────────────────────────────────
     headers: list[tuple[bytes, bytes]] = scope.get("headers", [])
     for name, value in headers:
         if name.lower() == b"authorization":
@@ -168,7 +186,7 @@ def _json_response(body: dict, status: int):
     """Minimal ASGI-compatible JSON response (no Starlette dependency)."""
     raw = json.dumps(body).encode()
 
-    async def send_response(receive, send):  # noqa: D401
+    async def send_response(receive, send):
         await send({
             "type":    "http.response.start",
             "status":  status,
@@ -187,39 +205,63 @@ def _json_response(body: dict, status: int):
 
 class AuthMiddleware:
     """
-    Pure-ASGI auth middleware.
+    Pure-ASGI auth middleware supporting both token-based and session-based auth.
 
-    For every HTTP/WebSocket request:
-      1. Skip auth for PUBLIC_PATHS.
-      2. Extract the JWT from ?token= query param or Authorization header.
-      3. Verify the JWT signature and extract user_id from payload["id"].
-      4. For tokens with type=="persistent": verify the token is still the
-         active one in the McpToken DB table (hard revocation support).
-      5. Set user_id_var in the current context BEFORE forwarding the
-         request — this propagates correctly into anyio thread workers
-         (where sync FastMCP tool handlers run).
-      6. Return 401 JSON on missing/invalid/revoked tokens.
-
-    WebSocket and lifespan scopes are passed through unchanged.
+    Request handling
+    ────────────────
+    1. PUBLIC_PATHS                       → pass through, no auth
+    2. POST /messages?sessionId=<id>      → look up _sessions; 401 if not found
+    3. GET  /sse?token=<jwt>              → verify JWT, capture sessionId from
+                                            FastMCP's SSE response, store in _sessions
+    4. Any other request with ?token= or  → verify JWT (+ revocation check for
+       Authorization: Bearer <token>        type==persistent tokens)
+    5. Anything else                      → 401
     """
 
     def __init__(self, app) -> None:
         self.app = app
 
     async def __call__(self, scope, receive, send) -> None:
-        # Pass non-HTTP scopes straight through (lifespan, websocket setup, …)
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
-        path = scope.get("path", "")
+        path   = scope.get("path", "")
+        method = scope.get("method", "")
 
-        # ── Public routes — no token required ─────────────────────────────
+        # ── 1. Public routes ──────────────────────────────────────────────
         if path in PUBLIC_PATHS:
             await self.app(scope, receive, send)
             return
 
-        # ── Extract JWT ───────────────────────────────────────────────────
+        qs     = scope.get("query_string", b"").decode("latin-1")
+        params = urllib.parse.parse_qs(qs)
+
+        # ── 2. POST /messages?sessionId=<id>  (no token present) ─────────
+        if (
+            method == "POST"
+            and "sessionId" in params
+            and "token" not in params
+            and _extract_token(scope) is None
+        ):
+            session_id = params["sessionId"][0]
+            entry = _sessions.get(session_id)
+            if not entry:
+                resp = _json_response(
+                    {"error": "Session not found or expired — reconnect your MCP URL"},
+                    401,
+                )
+                await resp(receive, send)
+                return
+            user_id, _ = entry
+            ctx = user_id_var.set(user_id)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                user_id_var.reset(ctx)
+            return
+
+        # ── 3 & 4. Token-based auth ───────────────────────────────────────
         raw_token = _extract_token(scope)
 
         if raw_token is None:
@@ -230,11 +272,13 @@ class AuthMiddleware:
             await resp(receive, send)
             return
 
-        # ── Verify JWT signature ──────────────────────────────────────────
         try:
             payload = verify_token(raw_token)
-            # Node.js server stores the user id under the "id" key
-            user_id = payload.get("id") or payload.get("userId") or payload.get("user_id")
+            user_id = (
+                payload.get("id")
+                or payload.get("userId")
+                or payload.get("user_id")
+            )
             if not user_id:
                 raise ValueError("JWT payload contains no user id")
         except (jwt.PyJWTError, ValueError):
@@ -242,7 +286,7 @@ class AuthMiddleware:
             await resp(receive, send)
             return
 
-        # ── Revocation check for persistent (URL-based) tokens ────────────
+        # Hard-revocation check for persistent URL tokens
         if payload.get("type") == "persistent":
             if not _is_token_active(raw_token, user_id):
                 resp = _json_response(
@@ -252,9 +296,38 @@ class AuthMiddleware:
                 await resp(receive, send)
                 return
 
-        # ── Inject user_id into this request's async context ─────────────
-        token_ctx = user_id_var.set(user_id)
+        # ── 3. SSE GET — capture sessionId from FastMCP's response ────────
+        if method == "GET" and "/sse" in path:
+            _cleanup_sessions()
+            captured_uid = user_id
+            captured_session_id: str | None = None
+
+            async def capturing_send(message):
+                nonlocal captured_session_id
+                if (
+                    captured_session_id is None
+                    and message.get("type") == "http.response.body"
+                ):
+                    body = message.get("body", b"")
+                    m = re.search(rb"sessionId=([A-Za-z0-9_\-]+)", body)
+                    if m:
+                        captured_session_id = m.group(1).decode()
+                        _sessions[captured_session_id] = (captured_uid, time.monotonic())
+                await send(message)
+
+            ctx = user_id_var.set(user_id)
+            try:
+                await self.app(scope, receive, capturing_send)
+            finally:
+                user_id_var.reset(ctx)
+                # Remove session when the SSE connection closes
+                if captured_session_id:
+                    _sessions.pop(captured_session_id, None)
+            return
+
+        # ── 4. All other authenticated requests ───────────────────────────
+        ctx = user_id_var.set(user_id)
         try:
             await self.app(scope, receive, send)
         finally:
-            user_id_var.reset(token_ctx)
+            user_id_var.reset(ctx)
