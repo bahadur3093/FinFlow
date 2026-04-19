@@ -151,35 +151,26 @@ export default function CreditCardPage() {
     if (!toSync.length) return;
 
     setStep('syncing');
-    let synced = 0;
-    let failed = 0;
 
-    // Batch in groups of 10
-    const BATCH = 10;
-    for (let i = 0; i < toSync.length; i += BATCH) {
-      const batch = toSync.slice(i, i + BATCH);
-      const results = await Promise.allSettled(
-        batch.map((tx) =>
-          api.post('/transactions', {
-            description: tx.note ? `${tx.merchant} — ${tx.note}` : tx.merchant,
-            amount: tx.amount,
-            type: 'expense',
-            category: FINTRACK_CATEGORY_MAP[tx.ai_category] || 'Other',
-            date: tx.date,
-            source: 'credit_card',
-          })
-        )
-      );
-      results.forEach((r) => {
-        if (r.status === 'fulfilled') synced++;
-        else failed++;
-      });
+    try {
+      const payload = toSync.map((tx) => ({
+        description: tx.note ? `${tx.merchant} — ${tx.note}` : tx.merchant,
+        amount:      tx.amount,
+        type:        'expense',
+        category:    FINTRACK_CATEGORY_MAP[tx.ai_category] || 'Other',
+        date:        tx.date,
+        source:      'credit_card',
+      }));
+
+      const { data } = await api.post('/transactions/batch', { transactions: payload });
+
+      if (parsed?.summary) recordImport(parsed.summary, data.count);
+      setSyncResult({ synced: data.count, failed: 0 });
+    } catch (err) {
+      console.error('[sync]', err.message);
+      setSyncResult({ synced: 0, failed: toSync.length });
     }
 
-    // Record import hash so duplicate detection works next time
-    if (parsed?.summary) recordImport(parsed.summary, synced);
-
-    setSyncResult({ synced, failed });
     setStep('done');
   }, [transactions, parsed]);
 

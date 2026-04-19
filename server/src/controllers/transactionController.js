@@ -29,3 +29,27 @@ export const deleteTransaction = async (req, res) => {
   io.to(req.user.id).emit('transaction:deleted', req.params.id);
   res.json({ message: 'Deleted' });
 };
+
+export const batchCreateTransactions = async (req, res) => {
+  const { transactions } = req.body;
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return res.status(400).json({ error: 'transactions must be a non-empty array' });
+  }
+  if (transactions.length > 200) {
+    return res.status(400).json({ error: 'Maximum 200 transactions per batch' });
+  }
+
+  const data = transactions.map((t) => ({
+    description: t.description,
+    amount:      t.amount,
+    type:        t.type,
+    category:    t.category,
+    date:        new Date(t.date),
+    source:      t.source || 'credit_card',
+    userId:      req.user.id,
+  }));
+
+  const result = await prisma.transaction.createMany({ data, skipDuplicates: false });
+  io.to(req.user.id).emit('transactions:batch_created', { count: result.count });
+  res.status(201).json({ count: result.count });
+};
