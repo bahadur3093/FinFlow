@@ -204,15 +204,18 @@ export default function InsightsPage() {
             <div className="bg-white/10 rounded-2xl px-2 py-1.5 backdrop-blur-sm">
               <AIProviderToggle onChange={handleProviderChange} />
             </div>
-            <button onClick={() => { setVisible(false); fetchAll(true); }}
-            disabled={refreshing}
-            className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"
-              className={refreshing ? 'animate-spin' : ''}>
-              <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-          </button>
+            <button
+              onClick={() => { setVisible(false); fetchAll(true); }}
+              disabled={refreshing}
+              className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"
+                className={refreshing ? 'animate-spin' : ''}>
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
