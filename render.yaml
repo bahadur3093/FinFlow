@@ -39,12 +39,12 @@ services:
     env: python
     rootDir: server
     buildCommand: pip install -r requirements.txt
-    startCommand: python mcp_server.py
+    startCommand: python main.py
     envVars:
       - key: DATABASE_URL
         sync: false
-      - key: MCP_USER_ID
-        sync: false
+      - key: JWT_SECRET
+        sync: false   # must match the JWT_SECRET used by finflow-server
 
   - type: web
     name: finflow-client

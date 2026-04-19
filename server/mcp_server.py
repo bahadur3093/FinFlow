@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-FinFlow MCP Server v2.0 — Python / FastMCP 2.x
+FinFlow MCP Server v3.0 — Python / FastMCP 2.x
 Connects Claude to the FinFlow PostgreSQL database.
-Deploy on Render as a web service (SSE transport).
+
+Auth: every request must carry  Authorization: Bearer <token>
+      The token is verified by AuthMiddleware (auth.py), which sets
+      user_id_var so tool handlers can call uid() to get the caller's ID.
+
+Deploy on Render as a web service; entry-point is main.py (uvicorn).
 """
 
 import os
@@ -14,12 +19,13 @@ import psycopg2.extras
 from psycopg2 import pool as pg_pool
 from fastmcp import FastMCP
 
+from auth import user_id_var  # ContextVar set per-request by AuthMiddleware
+
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
 
 DATABASE_URL = os.environ["DATABASE_URL"]
-CURRENT_USER_ID = os.environ.get("MCP_USER_ID", "cmnlkvkp30000hqm96cwu47rc")
 
 connection_pool = pg_pool.ThreadedConnectionPool(
     1, 5,
@@ -31,11 +37,18 @@ connection_pool = pg_pool.ThreadedConnectionPool(
 # HELPERS
 # ─────────────────────────────────────────────
 
+def uid() -> str:
+    """Return the authenticated user_id for the current request."""
+    return user_id_var.get()
+
+
 def get_conn():
     return connection_pool.getconn()
 
+
 def release_conn(conn):
     connection_pool.putconn(conn)
+
 
 def query(sql: str, params: tuple = ()):
     conn = get_conn()
@@ -53,6 +66,7 @@ def query(sql: str, params: tuple = ()):
         raise
     finally:
         release_conn(conn)
+
 
 def rows_to_text(rows: list) -> str:
     return json.dumps(rows, indent=2, default=str)
@@ -80,7 +94,7 @@ def get_balance() -> str:
         FROM "Transaction"
         WHERE "userId" = %s
         """,
-        (CURRENT_USER_ID,)
+        (uid(),)
     )
     income   = float(rows[0]["income"]   or 0)
     expenses = float(rows[0]["expenses"] or 0)
@@ -100,7 +114,7 @@ def get_transactions(
     limit: int = 50
 ) -> str:
     sql    = 'SELECT * FROM "Transaction" WHERE "userId" = %s'
-    params = [CURRENT_USER_ID]
+    params = [uid()]
     if type:      sql += " AND type = %s";      params.append(type)
     if category:  sql += " AND category = %s";  params.append(category)
     if from_date: sql += " AND date >= %s";     params.append(from_date)
@@ -123,7 +137,7 @@ def add_income(
             (id, description, amount, type, category, date, source, "userId", "budgetId")
         VALUES (gen_random_uuid(), %s, %s, 'income', %s, NOW(), 'ai_parsed', %s, %s)
         """,
-        (description, amount, category, CURRENT_USER_ID, budget_id)
+        (description, amount, category, uid(), budget_id)
     )
     return f'✅ Income of ₹{amount} logged: "{description}" under {category}.'
 
@@ -135,18 +149,19 @@ def add_expense(
     category: str,
     budget_id: Optional[str] = None
 ) -> str:
+    user_id = uid()
     query(
         """
         INSERT INTO "Transaction"
             (id, description, amount, type, category, date, source, "userId", "budgetId")
         VALUES (gen_random_uuid(), %s, %s, 'expense', %s, NOW(), 'ai_parsed', %s, %s)
         """,
-        (description, amount, category, CURRENT_USER_ID, budget_id)
+        (description, amount, category, user_id, budget_id)
     )
     if budget_id:
         query(
             'UPDATE "Budget" SET spent = spent + %s, "updatedAt" = NOW() WHERE id = %s AND "userId" = %s',
-            (amount, budget_id, CURRENT_USER_ID)
+            (amount, budget_id, user_id)
         )
     return f'✅ Expense of ₹{amount} logged: "{description}" under {category}.'
 
@@ -166,7 +181,7 @@ def update_transaction(
     if type:               updates.append("type = %s");        params.append(type)
     if not updates:
         return "No fields to update."
-    params.extend([id, CURRENT_USER_ID])
+    params.extend([id, uid()])
     query(
         f'UPDATE "Transaction" SET {", ".join(updates)} WHERE id = %s AND "userId" = %s',
         tuple(params)
@@ -176,7 +191,7 @@ def update_transaction(
 
 @mcp.tool(description="Delete a transaction by ID")
 def delete_transaction(id: str) -> str:
-    query('DELETE FROM "Transaction" WHERE id = %s AND "userId" = %s', (id, CURRENT_USER_ID))
+    query('DELETE FROM "Transaction" WHERE id = %s AND "userId" = %s', (id, uid()))
     return f"🗑️ Transaction {id} deleted."
 
 
@@ -186,7 +201,7 @@ def get_spending_summary(
     year: Optional[int] = None
 ) -> str:
     sql    = 'SELECT category, SUM(amount) AS total FROM "Transaction" WHERE "userId" = %s AND type = \'expense\''
-    params = [CURRENT_USER_ID]
+    params = [uid()]
     if month: sql += " AND EXTRACT(MONTH FROM date) = %s"; params.append(month)
     if year:  sql += " AND EXTRACT(YEAR FROM date) = %s";  params.append(year)
     sql += " GROUP BY category ORDER BY total DESC"
@@ -208,7 +223,7 @@ def get_monthly_trend(months: int = 6) -> str:
         GROUP BY TO_CHAR(date, 'YYYY-MM')
         ORDER BY month ASC
         """,
-        (CURRENT_USER_ID, str(months))
+        (uid(), str(months))
     )
     return rows_to_text(rows)
 
@@ -222,7 +237,7 @@ def get_budgets(
     year: Optional[int] = None
 ) -> str:
     sql    = 'SELECT * FROM "Budget" WHERE "userId" = %s'
-    params = [CURRENT_USER_ID]
+    params = [uid()]
     if month: sql += " AND month = %s"; params.append(month)
     if year:  sql += " AND year = %s";  params.append(year)
     sql += " ORDER BY year DESC, month DESC"
@@ -245,7 +260,7 @@ def create_budget(
         VALUES (gen_random_uuid(), %s, %s, 0, %s, %s, %s, NOW(), NOW(), %s)
         RETURNING id
         """,
-        (name, amount, category, month, year, CURRENT_USER_ID)
+        (name, amount, category, month, year, uid())
     )
     return f"✅ Budget created with ID: {rows[0]['id']}"
 
@@ -258,11 +273,11 @@ def update_budget(
     category: Optional[str] = None
 ) -> str:
     updates, params = [], []
-    if name:              updates.append("name = %s");   params.append(name)
+    if name:              updates.append("name = %s");    params.append(name)
     if amount is not None: updates.append("amount = %s"); params.append(amount)
     if category:          updates.append("category = %s"); params.append(category)
     updates.append('"updatedAt" = NOW()')
-    params.extend([id, CURRENT_USER_ID])
+    params.extend([id, uid()])
     query(
         f'UPDATE "Budget" SET {", ".join(updates)} WHERE id = %s AND "userId" = %s',
         tuple(params)
@@ -272,7 +287,7 @@ def update_budget(
 
 @mcp.tool(description="Delete a budget by ID")
 def delete_budget(id: str) -> str:
-    query('DELETE FROM "Budget" WHERE id = %s AND "userId" = %s', (id, CURRENT_USER_ID))
+    query('DELETE FROM "Budget" WHERE id = %s AND "userId" = %s', (id, uid()))
     return f"🗑️ Budget {id} deleted."
 
 # ═════════════════════════════════════════════
@@ -283,7 +298,7 @@ def delete_budget(id: str) -> str:
 def get_loans() -> str:
     rows = query(
         'SELECT * FROM "Loan" WHERE "userId" = %s ORDER BY "createdAt" DESC',
-        (CURRENT_USER_ID,)
+        (uid(),)
     )
     return rows_to_text(rows)
 
@@ -309,7 +324,7 @@ def add_loan(
         RETURNING id
         """,
         (name, type, principal, outstanding, emi,
-         interest_rate, tenure_months, start_date, CURRENT_USER_ID)
+         interest_rate, tenure_months, start_date, uid())
     )
     return f"✅ Loan added with ID: {rows[0]['id']}"
 
@@ -326,7 +341,7 @@ def update_loan(
     if emi is not None:           updates.append("emi = %s");            params.append(emi)
     if interest_rate is not None: updates.append('"interestRate" = %s'); params.append(interest_rate)
     updates.append('"updatedAt" = NOW()')
-    params.extend([id, CURRENT_USER_ID])
+    params.extend([id, uid()])
     query(
         f'UPDATE "Loan" SET {", ".join(updates)} WHERE id = %s AND "userId" = %s',
         tuple(params)
@@ -336,14 +351,5 @@ def update_loan(
 
 @mcp.tool(description="Delete a loan by ID")
 def delete_loan(id: str) -> str:
-    query('DELETE FROM "Loan" WHERE id = %s AND "userId" = %s', (id, CURRENT_USER_ID))
+    query('DELETE FROM "Loan" WHERE id = %s AND "userId" = %s', (id, uid()))
     return f"🗑️ Loan {id} deleted."
-
-# ─────────────────────────────────────────────
-# ENTRYPOINT
-# ─────────────────────────────────────────────
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    print(f"✅ FinFlow MCP Server v2.0 (Python/FastMCP) running on port {port}...")
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
