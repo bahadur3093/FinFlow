@@ -18,6 +18,7 @@ import CCChargesSection   from '../components/credit-card/CCChargesSection.jsx';
 import CCCategoryChart    from '../components/credit-card/CCCategoryChart.jsx';
 import CCSyncButton       from '../components/credit-card/CCSyncButton.jsx';
 import CCDoneScreen       from '../components/credit-card/CCDoneScreen.jsx';
+import CCHistoryPanel     from '../components/credit-card/CCHistoryPanel.jsx';
 
 // step index maps to CCStepIndicator positions 0-4
 const STEP_IDX = { idle: 0, unlocking: 1, parsing: 2, reviewing: 3, syncing: 4, done: 4 };
@@ -39,6 +40,9 @@ function hydrate(transactions) {
 
 export default function CreditCardPage() {
   const navigate = useNavigate();
+
+  // 'history' = default landing view  |  'upload' = parse new statement
+  const [view, setView]           = useState('history');
 
   const [step, setStep]           = useState('idle');
   const [parseStage, setParseStage] = useState('unlocking');
@@ -231,13 +235,44 @@ export default function CreditCardPage() {
         </div>
       </div>
 
-      {/* Step indicator */}
-      <CCStepIndicator currentStep={stepIdx} />
+      {/* Tab bar — only shown when not mid-parse */}
+      {(step === 'idle' || step === 'done') && (
+        <div className="flex border-b border-gray-100 bg-white">
+          {[
+            { id: 'history', label: 'History' },
+            { id: 'upload',  label: 'New Statement' },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setView(t.id); if (t.id === 'upload') setStep('idle'); }}
+              className={`flex-1 py-3 text-xs font-semibold border-b-2 transition-all ${
+                view === t.id
+                  ? 'border-brand text-brand'
+                  : 'border-transparent text-gray-400'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Step indicator — only shown during parse flow */}
+      {step !== 'idle' && step !== 'done' && (
+        <CCStepIndicator currentStep={stepIdx} />
+      )}
 
       {/* ── Content ─────────────────────────────────────────────────── */}
 
+      {/* History view */}
+      {view === 'history' && (step === 'idle' || step === 'done') && (
+        <div className="px-5 mt-6">
+          <CCHistoryPanel onUploadNew={() => { setView('upload'); setStep('idle'); }} />
+        </div>
+      )}
+
       {/* Step: idle / upload */}
-      {step === 'idle' && (
+      {view === 'upload' && step === 'idle' && (
         <div className="px-5 mt-6">
           <div className="card">
             <CCUploadPanel
@@ -306,7 +341,7 @@ export default function CreditCardPage() {
       )}
 
       {/* Step: done */}
-      {step === 'done' && (
+      {step === 'done' && view !== 'history' && (
         <div className="px-5 mt-6">
           <div className="card">
             <CCDoneScreen
@@ -316,6 +351,7 @@ export default function CreditCardPage() {
               totalDue={parsed?.summary?.total_due}
               onSetReminder={handleSetReminder}
               reminderSet={reminderSet}
+              onViewHistory={() => { setView('history'); setStep('idle'); }}
             />
           </div>
         </div>

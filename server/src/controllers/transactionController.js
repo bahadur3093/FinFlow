@@ -3,12 +3,42 @@ import { io } from '../index.js';
 import { checkBudgetAlert } from '../services/pushService.js';
 
 export const getTransactions = async (req, res) => {
-  const { limit = 50, offset = 0, category } = req.query;
+  const { limit = 50, offset = 0, category, source, month, year } = req.query;
+
+  const where = { userId: req.user.id };
+  if (category) where.category = category;
+  if (source)   where.source   = source;
+  if (month && year) {
+    const from = new Date(+year, +month - 1, 1);
+    const to   = new Date(+year, +month, 1);
+    where.date = { gte: from, lt: to };
+  }
+
   const transactions = await prisma.transaction.findMany({
-    where: { userId: req.user.id, ...(category && { category }) },
-    orderBy: { date: 'desc' }, take: +limit, skip: +offset
+    where,
+    orderBy: { date: 'desc' },
+    take: +limit,
+    skip: +offset,
   });
   res.json(transactions);
+};
+
+export const getCCMonths = async (req, res) => {
+  // Returns distinct year-month combos that have credit_card transactions,
+  // newest first — used to populate the month dropdown.
+  const rows = await prisma.$queryRaw`
+    SELECT
+      EXTRACT(YEAR  FROM date)::int AS year,
+      EXTRACT(MONTH FROM date)::int AS month,
+      COUNT(*)::int                 AS count,
+      SUM(amount)::float            AS total
+    FROM "Transaction"
+    WHERE "userId" = ${req.user.id}
+      AND source = 'credit_card'
+    GROUP BY year, month
+    ORDER BY year DESC, month DESC
+  `;
+  res.json(rows);
 };
 
 export const createTransaction = async (req, res) => {

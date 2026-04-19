@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { fmtCompact } from '../../utils/ccCategories.js';
 
-export default function CCDoneScreen({ synced, failed, dueDate, totalDue, onSetReminder, reminderSet }) {
+export default function CCDoneScreen({ synced, failed, dueDate, totalDue, onSetReminder, reminderSet, onViewHistory }) {
   const navigate = useNavigate();
 
   const daysLeft = dueDate
@@ -86,19 +86,20 @@ export default function CCDoneScreen({ synced, failed, dueDate, totalDue, onSetR
       {/* Actions */}
       <div className="w-full space-y-3">
         <button
-          onClick={() => navigate('/transactions')}
+          onClick={onViewHistory}
           className="btn-primary flex items-center justify-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M9 18l6-6-6-6" />
+            <rect x="1" y="4" width="22" height="16" rx="2" />
+            <line x1="1" y1="10" x2="23" y2="10" />
           </svg>
-          View in Transactions
+          View CC History
         </button>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => navigate('/transactions')}
           className="w-full py-3.5 rounded-2xl border border-gray-200 text-gray-600 text-sm font-semibold"
         >
-          Parse Another Statement
+          View All Transactions
         </button>
       </div>
     </div>
