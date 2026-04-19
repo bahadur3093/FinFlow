@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { parseStatement, getInsights } from '../controllers/aiController.js';
+import { parseStatement, getInsights, ollamaChatHandler } from '../controllers/aiController.js';
 import { parseCreditStatement } from '../controllers/creditCardController.js';
 
 const router = Router();
@@ -10,5 +10,6 @@ const uploadLarge = multer({ storage: multer.memoryStorage(), limits: { fileSize
 router.post('/parse-statement', upload.single('statement'), parseStatement);
 router.post('/parse-credit-statement', uploadLarge.single('statement'), parseCreditStatement);
 router.get('/insights', getInsights);
+router.post('/chat', ollamaChatHandler);
 
 export default router;

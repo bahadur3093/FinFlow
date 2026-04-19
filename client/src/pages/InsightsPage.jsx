@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api.js';
+import AIProviderToggle, { getAIProvider } from '../components/AIProviderToggle.jsx';
 
 const TIP_COLORS = [
   { bg: 'bg-brand-50',  border: 'border-brand-100',  icon: 'bg-brand',     text: 'text-brand'      },
@@ -149,13 +150,15 @@ export default function InsightsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
+  const [provider, setProvider] = useState(getAIProvider);
 
-  const fetchAll = async (isRefresh = false) => {
+  const fetchAll = async (isRefresh = false, prov) => {
+    const activeProvider = prov ?? provider;
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError('');
     try {
       const [insightsRes, txRes] = await Promise.all([
-        api.get('/ai/insights'),
+        api.get('/ai/insights', { headers: { 'x-ai-provider': activeProvider } }),
         api.get('/transactions?limit=100'),
       ]);
       setInsights(insightsRes.data);
@@ -169,7 +172,13 @@ export default function InsightsPage() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleProviderChange = (p) => {
+    setProvider(p);
+    setVisible(false);
+    fetchAll(true, p);
+  };
 
   const fmt = (n) => new Intl.NumberFormat('en-IN', {
     style: 'currency', currency: 'INR', maximumFractionDigits: 0
@@ -187,9 +196,15 @@ export default function InsightsPage() {
         <div className="flex items-start justify-between z-1 relative">
           <div>
             <h1 className="text-white text-xl font-bold mb-1">AI Insights</h1>
-            <p className="text-white/70 text-xs">Powered by Gemini · based on your transactions</p>
+            <p className="text-white/70 text-xs">
+              Powered by {provider === 'ollama' ? 'Ollama' : 'Gemini'} · based on your transactions
+            </p>
           </div>
-          <button onClick={() => { setVisible(false); fetchAll(true); }}
+          <div className="flex items-center gap-2">
+            <div className="bg-white/10 rounded-2xl px-2 py-1.5 backdrop-blur-sm">
+              <AIProviderToggle onChange={handleProviderChange} />
+            </div>
+            <button onClick={() => { setVisible(false); fetchAll(true); }}
             disabled={refreshing}
             className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"

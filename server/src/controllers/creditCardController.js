@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ollamaGenerate } from '../services/ollamaService.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -128,6 +129,14 @@ async function callGeminiWithFallback(pdfBase64) {
   throw lastErr; // all models failed
 }
 
+// ─── Ollama fallback (text-only — Ollama cannot handle PDFs natively) ─────────
+
+async function callOllamaForCreditStatement() {
+  throw new Error(
+    'PDF parsing is not supported by Ollama. Please switch to Gemini to parse credit card statements.'
+  );
+}
+
 // ─── Controller ──────────────────────────────────────────────────────────────
 
 export const parseCreditStatement = async (req, res) => {
@@ -136,6 +145,12 @@ export const parseCreditStatement = async (req, res) => {
     if (!file) return res.status(400).json({ error: 'No PDF file uploaded' });
     if (file.mimetype !== 'application/pdf') {
       return res.status(400).json({ error: 'Uploaded file must be a PDF' });
+    }
+
+    const provider = (req.headers['x-ai-provider'] || 'gemini').toLowerCase();
+
+    if (provider === 'ollama') {
+      await callOllamaForCreditStatement(); // throws with a friendly message
     }
 
     const pdfBase64 = file.buffer.toString('base64');

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import api from '../services/api.js';
+import AIProviderToggle, { getAIProvider } from '../components/AIProviderToggle.jsx';
 
 const CATEGORY_COLORS = {
   Food:          { bg: 'bg-red-50',    text: 'text-red-500'    },
@@ -57,6 +58,7 @@ export default function UploadPage() {
   const [parsed, setParsed] = useState([]);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [provider, setProvider] = useState(getAIProvider);
   const fileRef = useRef();
 
   const handleFile = (f) => {
@@ -93,7 +95,10 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append('statement', file);
       const { data } = await api.post('/ai/parse-statement', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'x-ai-provider': provider,
+        },
       });
       setParsed(data.transactions);
       setStep('review');
@@ -122,8 +127,15 @@ export default function UploadPage() {
       {/* Header */}
       <div className="relative bg-gradient-to-br from-brand-dark via-brand to-brand-light px-5 pt-12 pb-8 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white opacity-5" />
-        <h1 className="text-white text-xl font-bold mb-1">AI Statement Parser</h1>
-        <p className="text-white/70 text-xs">Upload your bank statement and let AI extract all transactions</p>
+        <div className="flex items-start justify-between z-10 relative">
+          <div>
+            <h1 className="text-white text-xl font-bold mb-1">AI Statement Parser</h1>
+            <p className="text-white/70 text-xs">Upload your bank statement and let AI extract all transactions</p>
+          </div>
+          <div className="bg-white/10 rounded-2xl px-2 py-1.5 backdrop-blur-sm">
+            <AIProviderToggle onChange={setProvider} />
+          </div>
+        </div>
       </div>
 
       <div className="px-5 mt-6 space-y-4">
@@ -187,7 +199,9 @@ export default function UploadPage() {
               <div className="bg-brand-50 rounded-2xl px-4 py-3">
                 <p className="text-xs font-semibold text-brand mb-1">How it works</p>
                 <p className="text-xs text-brand/70">
-                  Gemini AI reads your statement and automatically extracts, categorises, and imports all transactions into FinFlow.
+                  {provider === 'ollama'
+                    ? 'Ollama (llava) reads your statement image and extracts all transactions. Switch to Gemini for PDF files.'
+                    : 'Gemini AI reads your statement and automatically extracts, categorises, and imports all transactions into FinFlow.'}
                 </p>
               </div>
 
@@ -213,7 +227,9 @@ export default function UploadPage() {
               </div>
               <div>
                 <p className="text-gray-900 font-bold text-base">Analysing statement...</p>
-                <p className="text-xs text-gray-400 mt-1">Gemini AI is reading and extracting transactions</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {provider === 'ollama' ? 'Ollama is reading and extracting transactions' : 'Gemini AI is reading and extracting transactions'}
+                </p>
               </div>
               <div className="space-y-2 text-left bg-gray-50 rounded-2xl px-4 py-3">
                 {['Reading document...', 'Identifying transactions...', 'Categorising entries...'].map((s, i) => (

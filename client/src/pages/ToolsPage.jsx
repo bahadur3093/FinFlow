@@ -2,6 +2,18 @@ import { useNavigate } from 'react-router-dom';
 
 const tools = [
   {
+    to: '/tools/finbot',
+    title: 'FinBot AI Chat',
+    description: 'Chat with an Ollama-powered finance assistant — budgeting tips, saving advice, and more',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1A6BFF" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+    badge: 'Beta',
+    badgeColor: 'bg-amber-50 text-amber-600',
+  },
+  {
     to: '/credit-card',
     title: 'Credit Card Statement',
     description: 'Upload your CC statement PDF, extract all transactions with AI, and sync to FinTracker',

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
+import AIProviderToggle, { getAIProvider } from '../components/AIProviderToggle.jsx';
 import {
   classifyMerchant,
   FINTRACK_CATEGORY_MAP,
@@ -197,6 +198,9 @@ function CCTransactionList({ refreshKey }) {
 export default function CreditCardPage() {
   const navigate = useNavigate();
 
+  // AI provider
+  const [provider, setProvider] = useState(getAIProvider);
+
   // Parse accordion
   const [parseOpen,    setParseOpen]    = useState(false);
   const [step,         setStep]         = useState('idle');
@@ -251,7 +255,10 @@ export default function CreditCardPage() {
       parseForm.append('statement', unlockedBlob, 'statement.pdf');
 
       const parseRes = await api.post('/ai/parse-credit-statement', parseForm, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'x-ai-provider': provider,
+        },
         timeout: 120000,
       });
 
@@ -383,16 +390,21 @@ export default function CreditCardPage() {
           </svg>
           Dashboard
         </button>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                <line x1="1" y1="10" x2="23" y2="10" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-white text-xl font-bold">Credit Card</h1>
+              <p className="text-white/70 text-xs">Parse statements · Review · Sync</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-white text-xl font-bold">Credit Card</h1>
-            <p className="text-white/70 text-xs">Parse statements · Review · Sync</p>
+          <div className="bg-white/10 rounded-2xl px-2 py-1.5 backdrop-blur-sm">
+            <AIProviderToggle onChange={setProvider} />
           </div>
         </div>
       </div>
