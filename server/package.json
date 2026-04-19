@@ -13,6 +13,7 @@
     "vapid:generate": "node src/utils/generateVapid.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@google/generative-ai": "^0.21.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/client": "^5.22.0",

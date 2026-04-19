@@ -2,6 +2,19 @@ import { useNavigate } from 'react-router-dom';
 
 const tools = [
   {
+    to: '/credit-card',
+    title: 'Credit Card Statement',
+    description: 'Upload your CC statement PDF, extract all transactions with AI, and sync to FinTracker',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1A6BFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+      </svg>
+    ),
+    badge: 'New',
+    badgeColor: 'bg-brand-50 text-brand',
+  },
+  {
     to: '/tools/connect-claude',
     title: 'Connect Claude AI',
     description: 'Ask Claude about your finances — spending, budgets, loans and more',
