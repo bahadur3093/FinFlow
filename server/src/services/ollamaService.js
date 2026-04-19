@@ -1,5 +1,5 @@
 export const OLLAMA_BASE_URL = 'https://bahadur3093-ollama-server.hf.space';
-const TEXT_MODEL   = 'llama3.2';
+const TEXT_MODEL   = 'llama3.2:3b';
 const VISION_MODEL = 'llava';
 
 /**

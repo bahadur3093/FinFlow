@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../services/db.js';
-import { ollamaGenerate, ollamaChat } from '../services/ollamaService.js';
+import { ollamaGenerate } from '../services/ollamaService.js';
+import { agentAnswer } from '../services/textToSqlService.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -100,13 +101,92 @@ export const getInsights = async (req, res) => {
   }
 };
 
-// ── Ollama chat ───────────────────────────────────────────────────────────────
+// ── Gemini chat (context-injection, multi-turn) ───────────────────────────────
 
-const SYSTEM_PROMPT = `You are FinBot, a friendly personal finance assistant built into FinFlow.
-You help users understand their spending, savings, budgets, loans, and financial habits.
-Keep answers concise, practical, and encouraging. Use plain language — no jargon.
-If you don't know something specific to the user's data, say so and suggest they check their FinFlow dashboard.
-Never make up numbers or financial figures.`;
+const INR = (n) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+
+async function buildFinancialContext(userId) {
+  const now        = new Date();
+  const year       = now.getFullYear();
+  const month      = now.getMonth() + 1;
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+
+  const [allTx, budgets, loans] = await Promise.all([
+    prisma.transaction.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 200 }),
+    prisma.budget.findMany({ where: { userId, month, year } }),
+    prisma.loan.findMany({ where: { userId } }),
+  ]);
+
+  const totalIncome  = allTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = allTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+  const thisMonthSpend = allTx
+    .filter(t => { const d = new Date(t.date); return d >= monthStart && d <= monthEnd && t.type === 'expense'; })
+    .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc; }, {});
+
+  const monthName = now.toLocaleString('en-IN', { month: 'long' });
+
+  const budgetLines = budgets.length
+    ? budgets.map(b => {
+        const spent = thisMonthSpend[b.category] || 0;
+        const pct   = b.amount > 0 ? Math.round((spent / b.amount) * 100) : 0;
+        return `  • ${b.category}: ${INR(spent)} spent of ${INR(b.amount)} (${pct}%)`;
+      }).join('\n')
+    : Object.entries(thisMonthSpend).sort((a, b) => b[1] - a[1])
+        .map(([c, a]) => `  • ${c}: ${INR(a)}`).join('\n') || '  None';
+
+  const recentLines = allTx.slice(0, 30).map(t => {
+    const d = new Date(t.date).toISOString().split('T')[0];
+    return `  ${d}  ${t.type === 'income' ? '+' : '-'}${INR(t.amount)}  ${t.category}  ${t.description}`;
+  }).join('\n') || '  No transactions.';
+
+  const loanLines = loans.length
+    ? loans.map(l => `  • ${l.name}: ${INR(l.outstanding)} outstanding, ${INR(l.emi)}/mo EMI`).join('\n')
+    : '  No active loans.';
+
+  return `
+=== USER'S LIVE FINANCIAL DATA (${monthName} ${year}) ===
+Net balance    : ${INR(totalIncome - totalExpense)}
+Total income   : ${INR(totalIncome)}
+Total expenses : ${INR(totalExpense)}
+
+${monthName} spending${budgets.length ? ' vs budget' : ''}:
+${budgetLines}
+
+Recent transactions (last 30):
+${recentLines}
+
+Loans:
+${loanLines}
+=== END OF DATA — never invent figures not shown above ===`;
+}
+
+async function handleGeminiChat(messages, userId) {
+  const context    = await buildFinancialContext(userId);
+  const systemText = `You are FinBot, a friendly personal finance assistant built into FinFlow.
+You have access to the user's real financial data below. Use it to give accurate, personalised answers.
+Keep answers concise, practical, and encouraging. Use ₹ for money amounts. Plain language only.
+${context}`;
+
+  const model = genAI.getGenerativeModel({
+    model:             'gemini-2.5-flash',
+    systemInstruction: systemText,
+  });
+
+  // history = everything except the last user message
+  const history = messages.slice(0, -1).map(m => ({
+    role:  m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const chat   = model.startChat({ history });
+  const result = await chat.sendMessage(messages.at(-1).content);
+  return result.response.text();
+}
+
+// ── Shared chat handler — routes by x-ai-provider header ─────────────────────
 
 export const ollamaChatHandler = async (req, res) => {
   try {
@@ -115,23 +195,20 @@ export const ollamaChatHandler = async (req, res) => {
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
     }
-
-    // Validate each message has role + content
-    const valid = messages.every(
-      (m) => m && typeof m.role === 'string' && typeof m.content === 'string'
-    );
-    if (!valid) {
+    if (!messages.every(m => m && typeof m.role === 'string' && typeof m.content === 'string')) {
       return res.status(400).json({ error: 'Each message must have role and content' });
     }
 
-    // Prepend system prompt
-    const fullMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages,
-    ];
+    const provider = (req.headers['x-ai-provider'] || 'ollama').toLowerCase();
 
-    const reply = await ollamaChat(fullMessages);
-    res.json({ reply });
+    if (provider === 'gemini') {
+      const reply = await handleGeminiChat(messages, req.user.id);
+      return res.json({ reply });
+    }
+
+    // Default: Ollama Text-to-SQL agent
+    const result = await agentAnswer(messages, req.user.id);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

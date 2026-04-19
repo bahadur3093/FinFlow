@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.js';
+import AIProviderToggle, { getAIProvider } from '../components/AIProviderToggle.jsx';
 
 // ── Suggested starters ───────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
+  'How much did I spend this month?',
+  'Which category am I overspending on?',
+  'What is my current balance?',
   'How can I reduce my monthly expenses?',
-  'What is the 50/30/20 budgeting rule?',
-  'How much should I save each month?',
-  'Tips to pay off debt faster?',
+  'Give me a summary of my finances',
 ];
 
 // ── Typing indicator ─────────────────────────────────────────────────────────
@@ -66,8 +68,16 @@ export default function OllamaChatPage() {
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+  const [provider, setProvider]   = useState(getAIProvider);
   const bottomRef                 = useRef(null);
   const inputRef                  = useRef(null);
+
+  const handleProviderChange = (p) => {
+    setProvider(p);
+    setMessages([]);
+    setError('');
+    setInput('');
+  };
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -87,7 +97,9 @@ export default function OllamaChatPage() {
     setLoading(true);
 
     try {
-      const { data } = await api.post('/ai/chat', { messages: next });
+      const { data } = await api.post('/ai/chat', { messages: next }, {
+        headers: { 'x-ai-provider': provider },
+      });
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to reach FinBot. Please try again.');
@@ -137,11 +149,17 @@ export default function OllamaChatPage() {
                   <h1 className="text-white text-lg font-bold leading-tight">FinBot</h1>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white/90">BETA</span>
                 </div>
-                <p className="text-white/70 text-xs">Powered by Ollama · llama3.2</p>
+                <p className="text-white/70 text-xs">
+                  {provider === 'gemini' ? 'Powered by Gemini · has access to your data' : 'Powered by Ollama · Text-to-SQL agent'}
+                </p>
               </div>
             </div>
 
-            {messages.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="bg-white/10 rounded-2xl px-2 py-1.5 backdrop-blur-sm">
+                <AIProviderToggle onChange={handleProviderChange} />
+              </div>
+              {messages.length > 0 && (
               <button
                 onClick={clearChat}
                 className="flex items-center gap-1.5 text-white/60 text-xs hover:text-white transition-colors"
@@ -155,6 +173,7 @@ export default function OllamaChatPage() {
                 Clear
               </button>
             )}
+          </div>
           </div>
         </div>
       </div>
@@ -172,7 +191,11 @@ export default function OllamaChatPage() {
             </div>
             <div className="text-center">
               <p className="text-gray-800 font-bold text-base">Ask FinBot anything</p>
-              <p className="text-xs text-gray-400 mt-1">Get financial tips, budgeting help, and more</p>
+              <p className="text-xs text-gray-400 mt-1">Knows your real transactions, budgets & loans</p>
+            </div>
+            <div className="flex items-center gap-1.5 bg-green-50 border border-green-100 rounded-2xl px-3 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+              <p className="text-xs text-green-700 font-medium">Live data connected · answers based on your account</p>
             </div>
 
             {/* Suggestion chips */}
