@@ -23,6 +23,7 @@ import os
 import bcrypt
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
@@ -122,13 +123,23 @@ _mcp_asgi = mcp.http_app(transport="sse")
 # directly by Starlette before the middleware sees them.
 _protected_mcp = AuthMiddleware(_mcp_asgi)
 
-app = Starlette(
+_starlette_app = Starlette(
     routes=[
         Route("/health",     endpoint=health,          methods=["GET"]),
         Route("/auth/token", endpoint=token_endpoint,  methods=["POST"]),
         # Everything else → protected FastMCP (SSE + /messages)
         Mount("/",           app=_protected_mcp),
     ],
+)
+
+# CORS — required so Claude.ai's browser-side connectivity check can reach the
+# server. The SSE connection itself is proxied server-side, but the initial URL
+# validation and OPTIONS preflight come from the browser.
+app = CORSMiddleware(
+    _starlette_app,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ─────────────────────────────────────────────
