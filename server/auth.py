@@ -14,6 +14,16 @@ Design notes
 • A separate /auth/token endpoint (wired in main.py) issues long-lived
   MCP tokens (30 days) so that users don't have to refresh every 15 min.
 
+• Tokens minted by the Node.js /api/auth/mcp-token endpoint carry
+      { "id": ..., "scope": "mcp", "type": "persistent" }
+  and are stored in the McpToken DB table so they can be hard-revoked
+  when the user regenerates their URL.  The middleware checks the DB for
+  these tokens.  Older password-based /auth/token tokens bypass the check.
+
+• SSE connections pass the token as a query-string parameter:
+      /sse?token=<jwt>
+  The middleware reads that before falling back to the Authorization header.
+
 Public surface
 ──────────────
   user_id_var   — ContextVar[str]: read this inside every tool handler
@@ -26,8 +36,12 @@ import contextvars
 import datetime
 import json
 import os
+import threading
+import urllib.parse
 
 import jwt
+import psycopg2
+import psycopg2.pool
 
 # ─────────────────────────────────────────────
 # CONTEXT
@@ -48,6 +62,49 @@ JWT_ALGORITHM = "HS256"
 PUBLIC_PATHS = frozenset({"/auth/token", "/health"})
 
 # ─────────────────────────────────────────────
+# DB CONNECTION POOL (for revocation checks)
+# ─────────────────────────────────────────────
+
+_pool: "psycopg2.pool.ThreadedConnectionPool | None" = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = psycopg2.pool.ThreadedConnectionPool(
+                    1, 3, os.environ["DATABASE_URL"]
+                )
+    return _pool
+
+
+def _is_token_active(token: str, user_id: str) -> bool:
+    """
+    Return True if *token* is still the current active MCP token for *user_id*.
+
+    Only called for tokens with type=="persistent" (minted by the Node.js
+    /api/auth/mcp-token endpoint and stored in the McpToken table).
+    Fails open (returns True) on any DB error so availability is not impacted
+    by transient DB issues.
+    """
+    try:
+        p = _get_pool()
+        conn = p.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'SELECT id FROM "McpToken" WHERE "userId" = %s AND token = %s',
+                    (user_id, token),
+                )
+                return cur.fetchone() is not None
+        finally:
+            p.putconn(conn)
+    except Exception:
+        return True  # fail open — a DB hiccup should not block all requests
+
+# ─────────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────────
 
@@ -62,11 +119,14 @@ def verify_token(token: str) -> dict:
 
 def create_mcp_token(user_id: str) -> str:
     """
-    Mint a long-lived (30-day) JWT for MCP clients.
+    Mint a long-lived (30-day) JWT for MCP clients that authenticate via
+    the /auth/token password endpoint.
 
     Payload is intentionally identical to the Node.js access-token shape
     ({ "id": user_id }) so the same verify_token() works for both.
     A "scope": "mcp" claim distinguishes these from short-lived web tokens.
+    These tokens do NOT carry type:"persistent" and are NOT stored in the DB,
+    so they are not subject to the revocation DB check.
     """
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     payload = {
@@ -78,8 +138,23 @@ def create_mcp_token(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def _extract_bearer(scope: dict) -> str | None:
-    """Return the raw Bearer token string from the ASGI scope headers, or None."""
+def _extract_token(scope: dict) -> str | None:
+    """
+    Extract the raw JWT string from the request.
+
+    Checks in order:
+    1. ?token=<jwt> query-string parameter  (used by SSE MCP URL connections)
+    2. Authorization: Bearer <jwt> header   (used by MCP clients / direct API)
+    """
+    # ── Query string ──────────────────────────────────────────────────────
+    qs = scope.get("query_string", b"").decode("latin-1")
+    if qs:
+        params = urllib.parse.parse_qs(qs)
+        token_list = params.get("token", [])
+        if token_list:
+            return token_list[0].strip()
+
+    # ── Authorization header ──────────────────────────────────────────────
     headers: list[tuple[bytes, bytes]] = scope.get("headers", [])
     for name, value in headers:
         if name.lower() == b"authorization":
@@ -116,12 +191,14 @@ class AuthMiddleware:
 
     For every HTTP/WebSocket request:
       1. Skip auth for PUBLIC_PATHS.
-      2. Extract the Bearer token from the Authorization header.
-      3. Verify the JWT and extract user_id from payload["id"].
-      4. Set user_id_var in the current context BEFORE forwarding the
+      2. Extract the JWT from ?token= query param or Authorization header.
+      3. Verify the JWT signature and extract user_id from payload["id"].
+      4. For tokens with type=="persistent": verify the token is still the
+         active one in the McpToken DB table (hard revocation support).
+      5. Set user_id_var in the current context BEFORE forwarding the
          request — this propagates correctly into anyio thread workers
          (where sync FastMCP tool handlers run).
-      5. Return 401 JSON on missing/invalid tokens.
+      6. Return 401 JSON on missing/invalid/revoked tokens.
 
     WebSocket and lifespan scopes are passed through unchanged.
     """
@@ -142,17 +219,18 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # ── Extract & verify JWT ──────────────────────────────────────────
-        raw_token = _extract_bearer(scope)
+        # ── Extract JWT ───────────────────────────────────────────────────
+        raw_token = _extract_token(scope)
 
         if raw_token is None:
             resp = _json_response(
-                {"error": "Authorization: Bearer <token> header is required"},
+                {"error": "Token required: pass ?token=<jwt> or Authorization: Bearer <token>"},
                 401,
             )
             await resp(receive, send)
             return
 
+        # ── Verify JWT signature ──────────────────────────────────────────
         try:
             payload = verify_token(raw_token)
             # Node.js server stores the user id under the "id" key
@@ -163,6 +241,16 @@ class AuthMiddleware:
             resp = _json_response({"error": "Invalid or expired token"}, 401)
             await resp(receive, send)
             return
+
+        # ── Revocation check for persistent (URL-based) tokens ────────────
+        if payload.get("type") == "persistent":
+            if not _is_token_active(raw_token, user_id):
+                resp = _json_response(
+                    {"error": "Token has been revoked — regenerate your MCP URL"},
+                    401,
+                )
+                await resp(receive, send)
+                return
 
         # ── Inject user_id into this request's async context ─────────────
         token_ctx = user_id_var.set(user_id)

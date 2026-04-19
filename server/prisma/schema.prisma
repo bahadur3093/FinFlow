@@ -21,6 +21,7 @@ model User {
   pushSubs      PushSubscription[]
   refreshTokens RefreshToken[]
   loans         Loan[]
+  mcpToken      McpToken?
 }
 
 model Budget {
@@ -73,6 +74,16 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model McpToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

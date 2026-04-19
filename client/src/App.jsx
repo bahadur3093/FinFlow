@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import LoansPage from './pages/LoansPage.jsx';
 import ToolsPage from './pages/ToolsPage.jsx';
 import PDFUnlockerPage from './pages/PDFUnlockerPage.jsx';
+import ConnectClaudePage from './pages/ConnectClaudePage.jsx';
 
 const Protected = ({ children }) => {
   const token = useAuthStore(s => s.accessToken);
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="tools" element={<ToolsPage />} />
         <Route path="tools/pdf-unlocker" element={<PDFUnlockerPage />} />
+        <Route path="tools/connect-claude" element={<ConnectClaudePage />} />
       </Route>
     </Routes>
   );

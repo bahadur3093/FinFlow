@@ -2,6 +2,25 @@ import { useNavigate } from 'react-router-dom';
 
 const tools = [
   {
+    to: '/tools/connect-claude',
+    title: 'Connect Claude AI',
+    description: 'Ask Claude about your finances — spending, budgets, loans and more',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" fill="#EEF4FF" />
+        <path
+          d="M8.5 15.5L12 8l3.5 7.5M9.5 13.5h5"
+          stroke="#1A6BFF"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+    badge: 'New',
+    badgeColor: 'bg-brand-50 text-brand',
+  },
+  {
     to: '/tools/pdf-unlocker',
     title: 'PDF Unlocker',
     description: 'Remove password protection from any PDF file instantly',

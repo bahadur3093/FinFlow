@@ -4,6 +4,9 @@ import { prisma } from '../services/db.js';
 
 const signAccess  = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 const signRefresh = (id) => jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+// Long-lived token for MCP URL usage; type:"persistent" lets the Python server
+// distinguish these from short-lived access tokens and do a revocation DB check.
+const signMcp     = (id) => jwt.sign({ id, scope: 'mcp', type: 'persistent' }, process.env.JWT_SECRET, { expiresIn: '1y' });
 
 export const register = async (req, res) => {
   try {
@@ -45,6 +48,39 @@ export const refresh = async (req, res) => {
 };
 
 export const logout = (_, res) => res.json({ message: 'Logged out' });
+
+export const generateMcpToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // Return the existing token if it hasn't expired yet
+    const existing = await prisma.mcpToken.findUnique({ where: { userId } });
+    if (existing && existing.expiresAt > new Date()) {
+      return res.json({ token: existing.token, expiresAt: existing.expiresAt });
+    }
+    const token = signMcp(userId);
+    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    await prisma.mcpToken.upsert({
+      where:  { userId },
+      create: { token, expiresAt, userId },
+      update: { token, expiresAt },
+    });
+    res.json({ token, expiresAt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+export const revokeMcpToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const token = signMcp(userId);
+    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    await prisma.mcpToken.upsert({
+      where:  { userId },
+      create: { token, expiresAt, userId },
+      update: { token, expiresAt },
+    });
+    res.json({ token, expiresAt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+};
 
 export const updateProfile = async (req, res) => {
   try {
