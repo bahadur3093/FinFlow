@@ -237,14 +237,14 @@ class AuthMiddleware:
         qs     = scope.get("query_string", b"").decode("latin-1")
         params = urllib.parse.parse_qs(qs)
 
-        # ── 2. POST /messages?sessionId=<id>  (no token present) ─────────
+        # ── 2. POST /messages/?session_id=<id>  (no token present) ──────
         if (
             method == "POST"
-            and "sessionId" in params
+            and "session_id" in params
             and "token" not in params
             and _extract_token(scope) is None
         ):
-            session_id = params["sessionId"][0]
+            session_id = params["session_id"][0]
             entry = _sessions.get(session_id)
             if not entry:
                 resp = _json_response(
@@ -309,7 +309,7 @@ class AuthMiddleware:
                     and message.get("type") == "http.response.body"
                 ):
                     body = message.get("body", b"")
-                    m = re.search(rb"sessionId=([A-Za-z0-9_\-]+)", body)
+                    m = re.search(rb"session_id=([A-Za-z0-9_\-]+)", body)
                     if m:
                         captured_session_id = m.group(1).decode()
                         _sessions[captured_session_id] = (captured_uid, time.monotonic())
