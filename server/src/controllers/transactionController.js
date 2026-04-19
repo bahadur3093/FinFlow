@@ -2,6 +2,39 @@ import { prisma } from '../services/db.js';
 import { io } from '../index.js';
 import { checkBudgetAlert } from '../services/pushService.js';
 
+/**
+ * For each expense transaction, find the matching budget (same category + month + year)
+ * and increment its `spent`. Falls back to an explicit budgetId when provided.
+ *
+ * @param {string} userId
+ * @param {Array<{ category, amount, date, type, budgetId? }>} transactions
+ */
+async function autoUpdateBudgets(userId, transactions) {
+  // Group expenses by category + month + year → total amount
+  const groups = {};
+  for (const tx of transactions) {
+    if (tx.type !== 'expense') continue;
+    const d = new Date(tx.date);
+    const month = d.getMonth() + 1;
+    const year  = d.getFullYear();
+    const key   = `${tx.category}|${month}|${year}`;
+    groups[key] = (groups[key] || { amount: 0, month, year, category: tx.category });
+    groups[key].amount += Number(tx.amount);
+  }
+
+  for (const { category, month, year, amount } of Object.values(groups)) {
+    const budget = await prisma.budget.findFirst({
+      where: { userId, category, month, year },
+    });
+    if (!budget) continue;
+    await prisma.budget.update({
+      where: { id: budget.id },
+      data:  { spent: { increment: amount } },
+    });
+    await checkBudgetAlert(userId, budget.id);
+  }
+}
+
 export const getTransactions = async (req, res) => {
   const { limit = 50, offset = 0, category, source, month, year } = req.query;
 
@@ -46,9 +79,15 @@ export const createTransaction = async (req, res) => {
   const tx = await prisma.transaction.create({
     data: { description, amount, type, category, date: new Date(date), budgetId, userId: req.user.id }
   });
-  if (budgetId && type === 'expense') {
-    await prisma.budget.update({ where: { id: budgetId }, data: { spent: { increment: amount } } });
-    await checkBudgetAlert(req.user.id, budgetId);
+  if (type === 'expense') {
+    if (budgetId) {
+      // Explicit budget selected in UI
+      await prisma.budget.update({ where: { id: budgetId }, data: { spent: { increment: amount } } });
+      await checkBudgetAlert(req.user.id, budgetId);
+    } else {
+      // Auto-match by category + month + year
+      await autoUpdateBudgets(req.user.id, [{ type, category, amount, date: date || new Date() }]);
+    }
   }
   io.to(req.user.id).emit('transaction:created', tx);
   res.status(201).json(tx);
@@ -80,6 +119,10 @@ export const batchCreateTransactions = async (req, res) => {
   }));
 
   const result = await prisma.transaction.createMany({ data, skipDuplicates: false });
+
+  // Auto-update matching budgets by category + month + year
+  await autoUpdateBudgets(req.user.id, data);
+
   io.to(req.user.id).emit('transactions:batch_created', { count: result.count });
   res.status(201).json({ count: result.count });
 };

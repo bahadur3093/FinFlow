@@ -13,6 +13,7 @@ Deploy on Render as a web service; entry-point is main.py (uvicorn).
 import os
 import json
 from typing import Optional
+from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
@@ -158,11 +159,24 @@ def add_expense(
         """,
         (description, amount, category, user_id, budget_id)
     )
-    if budget_id:
+
+    # Auto-find matching budget by category + current month/year if not explicitly provided
+    resolved_budget_id = budget_id
+    if not resolved_budget_id:
+        now = datetime.now()
+        rows = query(
+            'SELECT id FROM "Budget" WHERE "userId" = %s AND category = %s AND month = %s AND year = %s LIMIT 1',
+            (user_id, category, now.month, now.year)
+        )
+        if rows:
+            resolved_budget_id = rows[0]['id']
+
+    if resolved_budget_id:
         query(
             'UPDATE "Budget" SET spent = spent + %s, "updatedAt" = NOW() WHERE id = %s AND "userId" = %s',
-            (amount, budget_id, user_id)
+            (amount, resolved_budget_id, user_id)
         )
+
     return f'✅ Expense of ₹{amount} logged: "{description}" under {category}.'
 
 
