@@ -3,21 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 
 const PLATFORM_COLORS = {
-  linkedin:  { bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
-  naukri:    { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  indeed:    { bg: 'bg-violet-50', text: 'text-violet-700', dot: 'bg-violet-500' },
-  glassdoor: { bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500'  },
+  linkedin:  { bg: 'bg-blue-50',   text: 'text-blue-700'   },
+  naukri:    { bg: 'bg-orange-50', text: 'text-orange-700' },
+  indeed:    { bg: 'bg-violet-50', text: 'text-violet-700' },
+  glassdoor: { bg: 'bg-green-50',  text: 'text-green-700'  },
 };
 
 const STATUS_OPTS = [
-  { value: 'new',     label: 'New',     color: 'text-gray-500'  },
-  { value: 'saved',   label: 'Saved',   color: 'text-blue-600'  },
-  { value: 'applied', label: 'Applied', color: 'text-green-600' },
-  { value: 'rejected',label: 'Pass',    color: 'text-red-500'   },
+  { value: 'new',      label: 'New',     bg: 'bg-gray-100',   text: 'text-gray-500'  },
+  { value: 'saved',    label: 'Saved',   bg: 'bg-blue-50',    text: 'text-blue-600'  },
+  { value: 'applied',  label: 'Applied', bg: 'bg-green-50',   text: 'text-green-600' },
+  { value: 'rejected', label: 'Pass',    bg: 'bg-red-50',     text: 'text-red-500'   },
 ];
 
+const STATUS_ACTIVE = {
+  new:      { bg: 'bg-gray-200',  text: 'text-gray-600'  },
+  saved:    { bg: 'bg-blue-100',  text: 'text-blue-700'  },
+  applied:  { bg: 'bg-green-100', text: 'text-green-700' },
+  rejected: { bg: 'bg-red-100',   text: 'text-red-600'   },
+};
+
 function ScoreRing({ score }) {
-  if (score == null) return <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">N/A</div>;
+  if (score == null) return (
+    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">N/A</div>
+  );
   const color = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
   const r = 22;
   const circ = 2 * Math.PI * r;
@@ -40,10 +49,41 @@ function ScoreRing({ score }) {
   );
 }
 
+function MiniRing({ val, max, label }) {
+  const pct = max > 0 ? val / max : 0;
+  const color = pct >= 0.75 ? '#22c55e' : pct >= 0.5 ? '#f59e0b' : pct > 0 ? '#ef4444' : '#e5e7eb';
+  const size = 56;
+  const r = 22;
+  const circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth="4" />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="4"
+            strokeDasharray={`${dash} ${circ - dash}`}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+        <span
+          className="absolute inset-0 flex items-center justify-center font-bold"
+          style={{ fontSize: 12, color }}
+        >
+          {val}
+        </span>
+      </div>
+      <span className="text-[10px] text-gray-400 leading-none">{label}</span>
+    </div>
+  );
+}
+
 export default function JobCard({ job, onStatusChange, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
   const [status, setStatus] = useState(job.status || 'new');
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
 
   const pc = PLATFORM_COLORS[job.platform] || PLATFORM_COLORS.linkedin;
@@ -65,20 +105,21 @@ export default function JobCard({ job, onStatusChange, onDelete }) {
     return typeof raw === 'object' && Object.keys(raw).length > 0 ? raw : null;
   })();
 
+  const activeStatus = STATUS_ACTIVE[status] || STATUS_ACTIVE.new;
+
   return (
     <div
       className="card p-4 space-y-3 cursor-pointer active:scale-[0.99] transition-transform"
       onClick={() => navigate(`/tools/jobs/${job.id}`)}
     >
+      {/* Header row */}
       <div className="flex items-start gap-3">
         <ScoreRing score={job.score} />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-800 leading-snug">
-                {job.title}
-              </p>
+              <p className="text-sm font-bold text-gray-800 leading-snug">{job.title}</p>
               <p className="text-xs text-gray-500 mt-0.5">{job.company}</p>
             </div>
             <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${pc.bg} ${pc.text}`}>
@@ -103,26 +144,13 @@ export default function JobCard({ job, onStatusChange, onDelete }) {
         </div>
       </div>
 
-      {/* Score bar breakdown */}
+      {/* Score breakdown — mini rings */}
       {details && (
-        <div className="space-y-1.5">
-          {[
-            { label: 'Skills', val: details.skillsMatch, max: 40 },
-            { label: 'Role',   val: details.roleMatch,   max: 30 },
-            { label: 'Exp',    val: details.experienceMatch, max: 20 },
-            { label: 'Location', val: details.locationMatch, max: 10 },
-          ].map(({ label, val, max }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-400 w-14 flex-shrink-0">{label}</span>
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-brand transition-all"
-                  style={{ width: `${Math.round((val / max) * 100)}%` }}
-                />
-              </div>
-              <span className="text-[10px] text-gray-500 w-8 text-right">{val}/{max}</span>
-            </div>
-          ))}
+        <div className="flex items-center justify-around pt-1">
+          <MiniRing val={details.skillsMatch}     max={40} label="Skills"   />
+          <MiniRing val={details.roleMatch}        max={30} label="Role"     />
+          <MiniRing val={details.experienceMatch}  max={20} label="Exp"      />
+          <MiniRing val={details.locationMatch}    max={10} label="Location" />
         </div>
       )}
 
@@ -133,11 +161,11 @@ export default function JobCard({ job, onStatusChange, onDelete }) {
         </p>
       )}
 
-      {/* Strengths/Gaps toggle */}
+      {/* Strengths / Gaps toggle */}
       {details && (details.strengths?.length > 0 || details.gaps?.length > 0) && (
         <div>
           <button
-            onClick={() => setExpanded((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
             className="text-[11px] text-brand font-semibold flex items-center gap-1"
           >
             {expanded ? 'Hide details' : 'Show strengths & gaps'}
@@ -173,15 +201,21 @@ export default function JobCard({ job, onStatusChange, onDelete }) {
         </div>
       )}
 
-      {/* Actions — stop propagation so these don't also navigate */}
+      {/* Actions */}
       <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+        {/* Current status badge */}
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${activeStatus.bg} ${activeStatus.text}`}>
+          {STATUS_OPTS.find((o) => o.value === status)?.label}
+        </span>
+
+        {/* Other status options */}
         <div className="flex gap-1 flex-1">
           {STATUS_OPTS.filter((o) => o.value !== status).map((opt) => (
             <button
               key={opt.value}
               onClick={() => handleStatus(opt.value)}
               disabled={saving}
-              className={`text-[10px] font-semibold px-2 py-1.5 rounded-lg border border-gray-200 ${opt.color} hover:bg-gray-50 transition-colors`}
+              className={`text-[10px] font-semibold px-2 py-1 rounded-lg ${opt.bg} ${opt.text} hover:opacity-80 transition-opacity`}
             >
               {opt.label}
             </button>

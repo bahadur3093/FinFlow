@@ -101,7 +101,7 @@ export const startScrape = async (req, res) => {
 
     const sessionId = randomUUID();
     const userId = req.user.id;
-    const scoringProvider = (req.headers['x-ai-provider'] || 'ollama').toLowerCase();
+    const scoringProvider = (req.headers['x-ai-provider'] || 'groq').toLowerCase();
     res.json({ message: 'Scraping started', sessionId });
 
     (async () => {
@@ -124,6 +124,8 @@ export const startScrape = async (req, res) => {
         }, scoringProvider);
 
         // 3. Persist to DB
+        const sample = scoredJobs[0];
+        console.log(`[startScrape] Persisting ${scoredJobs.length} jobs. Sample — score: ${sample?.score}, scoreDetails: ${JSON.stringify(sample?.scoreDetails)?.slice(0, 120)}`);
         await prisma.jobPost.createMany({
           data: scoredJobs.map((j) => ({
             userId,

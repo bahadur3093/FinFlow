@@ -1,9 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { ollamaGenerate } from './ollamaService.js';
 
-const OLLAMA_SCORING_MODEL = 'qwen2.5:1.5b';
+const OLLAMA_SCORING_MODEL = 'mistral:latest';
+const GROQ_SCORING_MODEL   = process.env.GROQ_SCORING_MODEL || 'llama-3.3-70b-versatile';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const cleanJSON = (text) => {
   const stripped = text
@@ -45,11 +46,13 @@ Return ONLY a valid JSON array with exactly ${jobs.length} objects in the same o
 [{"score":85,"skillsMatch":35,"roleMatch":25,"experienceMatch":18,"locationMatch":7,"strengths":["strength1"],"gaps":["gap1"],"summary":"one sentence fit summary"}]`;
 }
 
-async function scoreWithGemini(jobs, profile) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent(buildPrompt(jobs, profile));
-  const rawText = result.response.text();
-  console.log('[jobScoring:gemini] raw response (first 500 chars):', rawText.slice(0, 500));
+async function scoreWithGroq(jobs, profile) {
+  const response = await groq.chat.completions.create({
+    model: GROQ_SCORING_MODEL,
+    messages: [{ role: 'user', content: buildPrompt(jobs, profile) }],
+  });
+  const rawText = response.choices[0]?.message?.content ?? '';
+  console.log('[jobScoring:groq] raw response (first 500 chars):', rawText.slice(0, 500));
   return rawText;
 }
 
@@ -60,8 +63,8 @@ async function scoreWithOllama(jobs, profile) {
 }
 
 async function scoreJobsBatch(jobs, profile, provider, onProgress, offset = 0) {
-  const rawText = provider === 'gemini'
-    ? await scoreWithGemini(jobs, profile)
+  const rawText = provider === 'groq'
+    ? await scoreWithGroq(jobs, profile)
     : await scoreWithOllama(jobs, profile);
 
   const scores = JSON.parse(cleanJSON(rawText));
@@ -89,7 +92,7 @@ async function scoreJobsBatch(jobs, profile, provider, onProgress, offset = 0) {
   });
 }
 
-export async function scoreJobs(jobs, profile, onProgress, provider = 'ollama') {
+export async function scoreJobs(jobs, profile, onProgress, provider = 'groq') {
   console.log(`[jobScoring] Using provider: ${provider}, jobs: ${jobs.length}`);
 
   // Try all jobs in one call for relative comparison
@@ -100,22 +103,23 @@ export async function scoreJobs(jobs, profile, onProgress, provider = 'ollama') 
     console.warn(`[jobScoring:${provider}] Single-batch failed, retrying in chunks of 10:`, err.message);
   }
 
-  // Fallback: chunks of 10 (smaller models struggle with large prompts)
-  const CHUNK = 10;
-  try {
-    const all = [];
-    for (let i = 0; i < jobs.length; i += CHUNK) {
-      const chunk = jobs.slice(i, i + CHUNK);
+  // Fallback: score each chunk independently — a failed chunk gets null scores,
+  // but successfully scored chunks are preserved (not thrown away).
+  const CHUNK = 5;
+  const all = [];
+  for (let i = 0; i < jobs.length; i += CHUNK) {
+    const chunk = jobs.slice(i, i + CHUNK);
+    try {
       const scored = await scoreJobsBatch(chunk, profile, provider, onProgress, i);
       all.push(...scored);
+    } catch (err) {
+      console.error(`[jobScoring:${provider}] Chunk ${i}–${i + chunk.length - 1} failed — those jobs unscored:`, err.message);
+      chunk.forEach((job, j) => {
+        const scored = { ...job, score: null, scoreDetails: null };
+        if (onProgress) onProgress(scored, i + j);
+        all.push(scored);
+      });
     }
-    return all.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  } catch (err) {
-    console.error(`[jobScoring:${provider}] Chunked scoring failed — jobs unscored:`, err.message);
-    return jobs.map((job, i) => {
-      const scored = { ...job, score: null, scoreDetails: null };
-      if (onProgress) onProgress(scored, i);
-      return scored;
-    });
   }
+  return all.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
 }

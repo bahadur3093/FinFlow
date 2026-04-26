@@ -1,5 +1,6 @@
 export const OLLAMA_BASE_URL = 'https://bahadur3093-ollama-server.hf.space';
-const TEXT_MODEL   = 'llama3.2:3b';
+export const OLLAMA_BASE_URL_LOCAL = 'http://localhost:11434';
+const TEXT_MODEL   = 'qwen2.5:1:5';
 const VISION_MODEL = 'llava';
 
 /**
@@ -25,7 +26,7 @@ export async function ollamaGenerate(prompt, opts = {}) {
   const body = { model, prompt, stream: false };
   if (isImage) body.images = [imageBase64];
 
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+  const response = await fetch(`${OLLAMA_BASE_URL_LOCAL}/api/generate`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
@@ -48,7 +49,7 @@ export async function ollamaGenerate(prompt, opts = {}) {
  * @returns {Promise<string>} assistant reply text
  */
 export async function ollamaChat(messages, model = TEXT_MODEL) {
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+  const response = await fetch(`${OLLAMA_BASE_URL_LOCAL}/api/chat`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ model, messages, stream: false }),

@@ -3,20 +3,18 @@ import { useState } from 'react';
 export const AI_PROVIDER_KEY = 'ai_provider';
 
 export function getAIProvider() {
-  return localStorage.getItem(AI_PROVIDER_KEY) || 'gemini';
+  return localStorage.getItem(AI_PROVIDER_KEY) || 'groq';
 }
 
-/** Gemini logo mark (colourful G) */
-function GeminiIcon() {
+function GroqIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#4285F4"/>
-      <path d="M12 6v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="12" cy="12" r="10" fill="#F55036"/>
+      <path d="M12 7v5l3 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }
 
-/** Simple Ollama spark icon */
 function OllamaIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -27,10 +25,10 @@ function OllamaIcon() {
 }
 
 /**
- * Pill toggle to switch between Gemini and Ollama.
+ * Pill toggle to switch between Groq and Ollama.
  *
  * Props:
- *   onChange(provider: 'gemini' | 'ollama') — called whenever the user switches
+ *   onChange(provider: 'groq' | 'ollama') — called whenever the user switches
  */
 export default function AIProviderToggle({ onChange }) {
   const [provider, setProvider] = useState(getAIProvider);
@@ -48,15 +46,15 @@ export default function AIProviderToggle({ onChange }) {
       <div className="flex items-center bg-gray-100 rounded-xl p-0.5">
         <button
           type="button"
-          onClick={() => select('gemini')}
+          onClick={() => select('groq')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
-            provider === 'gemini'
+            provider === 'groq'
               ? 'bg-white text-brand shadow-sm'
               : 'text-gray-400 hover:text-gray-600'
           }`}
         >
-          <GeminiIcon />
-          Gemini
+          <GroqIcon />
+          Groq
         </button>
         <button
           type="button"
