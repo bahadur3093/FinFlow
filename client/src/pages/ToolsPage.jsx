@@ -2,6 +2,21 @@ import { useNavigate } from 'react-router-dom';
 
 const tools = [
   {
+    to: '/tools/jobs',
+    title: 'Job Finder AI',
+    description: 'Scrape LinkedIn, Naukri, Indeed & Glassdoor live — AI scores each job by your skills & experience',
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1A6BFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+        <line x1="12" y1="12" x2="12" y2="16"/>
+        <line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+    ),
+    badge: 'New',
+    badgeColor: 'bg-brand-50 text-brand',
+  },
+  {
     to: '/tools/finbot',
     title: 'FinBot AI Chat',
     description: 'Chat with an Ollama-powered finance assistant — budgeting tips, saving advice, and more',

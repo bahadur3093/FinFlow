@@ -17,12 +17,15 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  budgets       Budget[]
-  transactions  Transaction[]
-  pushSubs      PushSubscription[]
-  refreshTokens RefreshToken[]
-  loans         Loan[]
-  mcpToken      McpToken?
+  budgets        Budget[]
+  transactions   Transaction[]
+  pushSubs       PushSubscription[]
+  refreshTokens  RefreshToken[]
+  loans          Loan[]
+  mcpToken       McpToken?
+  jobProfile        UserJobProfile?
+  jobPosts          JobPost[]
+  platformSessions  UserPlatformSession[]
 }
 
 model Budget {
@@ -103,4 +106,52 @@ model Loan {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserJobProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills             String[]
+  experienceYears    Int      @default(0)
+  targetRole         String   @default("")
+  preferredLocations String[]
+  summary            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model JobPost {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  company      String
+  location     String?
+  url          String
+  description  String?
+  platform     String
+  salary       String?
+  postedAt     String?
+  score        Int?
+  scoreDetails Json?
+  status       String   @default("new")
+  sessionId    String?
+  screenshotUrl String?
+  scrapedAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, sessionId])
+}
+
+model UserPlatformSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform     String   // "linkedin" | "naukri" | "indeed" | "glassdoor"
+  storageState String   @db.Text // Playwright storageState JSON (cookies + localStorage)
+  connectedAt  DateTime @default(now())
+
+  @@unique([userId, platform])
+  @@index([userId])
 }

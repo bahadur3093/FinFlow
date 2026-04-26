@@ -15,6 +15,7 @@ import { setupSocketHandlers } from './services/socketService.js';
 import loanRoutes from './routes/loans.js';
 import shortcutsRouter from './routes/shortcuts.js';
 import toolsRoutes from './routes/tools.js';
+import jobsRoutes from './routes/jobs.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -47,6 +48,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/loans', authenticateToken, loanRoutes);
 app.use('/api/shortcuts', shortcutsRouter);
 app.use('/api/tools', authenticateToken, toolsRoutes);
+app.use('/api/jobs', authenticateToken, jobsRoutes);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

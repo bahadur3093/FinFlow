@@ -11,7 +11,7 @@ const VISION_MODEL = 'llava';
  * @param {string} [opts.mimeType]    - MIME type of the file (e.g. image/jpeg)
  */
 export async function ollamaGenerate(prompt, opts = {}) {
-  const { imageBase64, mimeType } = opts;
+  const { imageBase64, mimeType, model: modelOverride } = opts;
 
   if (mimeType === 'application/pdf') {
     throw new Error(
@@ -20,7 +20,7 @@ export async function ollamaGenerate(prompt, opts = {}) {
   }
 
   const isImage = imageBase64 && mimeType && mimeType.startsWith('image/');
-  const model   = isImage ? VISION_MODEL : TEXT_MODEL;
+  const model   = modelOverride || (isImage ? VISION_MODEL : TEXT_MODEL);
 
   const body = { model, prompt, stream: false };
   if (isImage) body.images = [imageBase64];

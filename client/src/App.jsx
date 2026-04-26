@@ -15,6 +15,8 @@ import PDFUnlockerPage from './pages/PDFUnlockerPage.jsx';
 import ConnectClaudePage from './pages/ConnectClaudePage.jsx';
 import CreditCardPage from './pages/CreditCardPage.jsx';
 import OllamaChatPage from './pages/OllamaChatPage.jsx';
+import JobsPage from './pages/JobsPage.jsx';
+import JobDetailPage from './pages/JobDetailPage.jsx';
 
 const Protected = ({ children }) => {
   const token = useAuthStore(s => s.accessToken);
@@ -39,6 +41,8 @@ export default function App() {
         <Route path="tools/connect-claude" element={<ConnectClaudePage />} />
         <Route path="credit-card" element={<CreditCardPage />} />
         <Route path="tools/finbot" element={<OllamaChatPage />} />
+        <Route path="tools/jobs" element={<JobsPage />} />
+        <Route path="tools/jobs/:id" element={<JobDetailPage />} />
       </Route>
     </Routes>
   );
