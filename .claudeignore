@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+.next/
+client/dist/
+
+# Env files — credentials, never needed (schema documented in CLAUDE.md)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Lock files — massive, zero signal
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# DB migrations — schema already in CLAUDE.md
+server/prisma/migrations/
+
+# macOS noise
+**/.DS_Store
+
+# Logs
+**/*.log
+**/logs/
+
+# Playwright browser downloads & cache
+**/playwright-downloads/
+**/.playwright/
+server/node_modules/.cache/
+
+# Cloudinary temp uploads / local caches
+**/uploads/
+**/tmp/
+
+# Git internals
+.git/
+
+# Misc
+**/*.map
